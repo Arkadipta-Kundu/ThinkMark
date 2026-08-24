@@ -157,6 +157,12 @@ nav {
   margin-bottom: 9px;
 }
 
+.field-help {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 10px 0 0;
+}
+
 .search-row {
   display: flex;
   gap: 10px;

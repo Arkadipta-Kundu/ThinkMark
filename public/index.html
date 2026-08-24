@@ -41,15 +41,16 @@
           <div class="search-row">
             <input
               id="searchInput"
-              maxlength="5"
-              pattern="[a-zA-Z0-9]{5}"
+              maxlength="4"
+              pattern="[a-z0-9]{4}"
               autocomplete="off"
               spellcheck="false"
-              placeholder="e.g. a3b6k"
+              placeholder="e.g. a3b6"
               required
             >
             <button class="primary-btn" type="submit">Open</button>
           </div>
+          <p class="field-help">Use exactly 4 lowercase letters or numbers.</p>
         </form>
 
         <button class="new-note-link" id="newNoteBtn">
@@ -107,7 +108,7 @@
             <span class="eyebrow">DIGITAL EXTENSION</span>
             <h1 id="editorTitle">New note</h1>
           </div>
-          <div id="codePreview" class="code-preview">?????</div>
+          <div id="codePreview" class="code-preview">????</div>
         </div>
 
         <textarea
@@ -139,7 +140,7 @@
 
         <div class="note-meta">
           <span class="eyebrow">THINKMARK CODE</span>
-          <button id="noteCode" class="large-code" title="Copy code">a3b6k</button>
+          <button id="noteCode" class="large-code" title="Copy code">a3b6</button>
           <div id="noteDate" class="note-date"></div>
         </div>
 

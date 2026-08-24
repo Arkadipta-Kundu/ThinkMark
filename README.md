@@ -51,9 +51,21 @@ Enter your ThinkMark password.
 Tap New Note.
 Write your extension.
 Save.
-Copy the generated 5-character code into your physical notebook.
+Copy the generated 4-character code into your physical notebook.
 
 Later, enter the code on the home page to retrieve it.
+
+## Existing data migration
+
+This app now expects note codes to be exactly 4 lowercase alphanumeric characters (`a-z`, `0-9`).
+
+If your database already contains 5-character codes, do not change the schema in place without a plan:
+
+- Existing 5-character rows will fail the new `varchar(4)` and regex check.
+- The app will reject 5-character codes after this change.
+- You must migrate those records explicitly, for example by assigning each legacy row a new unique 4-character code and updating the matching physical notebook references before enforcing the new schema.
+
+Do not truncate 5-character codes automatically, because truncation can create collisions and break existing references.
 
 ## Local development
 

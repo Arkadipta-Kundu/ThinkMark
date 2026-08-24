@@ -5,6 +5,9 @@ const state = {
   notes: []
 };
 
+const NOTE_CODE_LENGTH = 4;
+const NOTE_CODE_PATTERN = new RegExp(`^[a-z0-9]{${NOTE_CODE_LENGTH}}$`);
+
 const $ = (selector) => document.querySelector(selector);
 
 const passwordModal = $("#passwordModal");
@@ -184,7 +187,7 @@ function openNewNote() {
 
   $("#editorMode").textContent = "NEW NOTE";
   $("#editorTitle").textContent = "New note";
-  $("#codePreview").textContent = "?????";
+  $("#codePreview").textContent = "?".repeat(NOTE_CODE_LENGTH);
   $("#noteContent").value = "";
   updateCharCount();
   $("#saveBtn").textContent = "Save & get code";
@@ -373,8 +376,8 @@ $("#searchForm").addEventListener("submit", event => {
 
   const code = $("#searchInput").value.trim().toLowerCase();
 
-  if (!/^[a-z0-9]{5}$/.test(code)) {
-    showToast("Enter a 5-character code.");
+  if (!NOTE_CODE_PATTERN.test(code)) {
+    showToast(`Enter a ${NOTE_CODE_LENGTH}-character code.`);
     return;
   }
 

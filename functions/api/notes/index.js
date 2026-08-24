@@ -3,9 +3,10 @@ import { triggerNotesBackup } from "../_backup.js";
 import { supabaseRequest } from "../_supabase.js";
 
 const CODE_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
+const CODE_LENGTH = 4;
 
 function generateCode() {
-  const bytes = crypto.getRandomValues(new Uint8Array(5));
+  const bytes = crypto.getRandomValues(new Uint8Array(CODE_LENGTH));
   let code = "";
 
   for (const byte of bytes) {

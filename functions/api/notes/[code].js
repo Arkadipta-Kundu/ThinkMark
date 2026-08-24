@@ -2,8 +2,10 @@ import { isAuthorized, unauthorized } from "../_auth.js";
 import { triggerNotesBackup } from "../_backup.js";
 import { supabaseRequest } from "../_supabase.js";
 
+const CODE_PATTERN = /^[a-z0-9]{4}$/;
+
 function validCode(code) {
-  return /^[a-z0-9]{5}$/.test(code);
+  return CODE_PATTERN.test(code);
 }
 
 export async function onRequestGet({ params, request, env }) {
