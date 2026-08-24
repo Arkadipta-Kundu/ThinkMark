@@ -1,4 +1,5 @@
 import { isAuthorized, unauthorized } from "../_auth.js";
+import { triggerNotesBackup } from "../_backup.js";
 import { supabaseRequest } from "../_supabase.js";
 
 function validCode(code) {
@@ -41,7 +42,7 @@ export async function onRequestGet({ params, request, env }) {
   return Response.json(rows[0]);
 }
 
-export async function onRequestPut({ params, request, env }) {
+export async function onRequestPut({ params, request, env, waitUntil }) {
   if (!isAuthorized(request, env)) return unauthorized();
 
   const code = params.code?.toLowerCase();
@@ -113,10 +114,11 @@ export async function onRequestPut({ params, request, env }) {
     );
   }
 
+  triggerNotesBackup(waitUntil, env);
   return Response.json(rows[0]);
 }
 
-export async function onRequestDelete({ params, request, env }) {
+export async function onRequestDelete({ params, request, env, waitUntil }) {
   if (!isAuthorized(request, env)) return unauthorized();
 
   const code = params.code?.toLowerCase();
@@ -143,5 +145,6 @@ export async function onRequestDelete({ params, request, env }) {
     );
   }
 
+  triggerNotesBackup(waitUntil, env);
   return Response.json({ success: true });
 }

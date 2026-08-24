@@ -1,4 +1,5 @@
 import { isAuthorized, unauthorized } from "../_auth.js";
+import { triggerNotesBackup } from "../_backup.js";
 import { supabaseRequest } from "../_supabase.js";
 
 const CODE_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -60,7 +61,7 @@ export async function onRequestGet({ request, env }) {
   return Response.json(await response.json());
 }
 
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost({ request, env, waitUntil }) {
   if (!isAuthorized(request, env)) return unauthorized();
 
   let body;
@@ -117,6 +118,7 @@ export async function onRequestPost({ request, env }) {
     }
 
     const rows = await response.json();
+    triggerNotesBackup(waitUntil, env);
 
     return Response.json(rows[0], { status: 201 });
   } catch (error) {
