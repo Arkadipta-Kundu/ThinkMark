@@ -13,15 +13,15 @@ const passwordInput = $("#passwordInput");
 const loginError = $("#loginError");
 
 function getPassword() {
-  return sessionStorage.getItem("thinkmark_password") || "";
+  return localStorage.getItem("thinkmark_password") || "";
 }
 
 function setPassword(password) {
-  sessionStorage.setItem("thinkmark_password", password);
+  localStorage.setItem("thinkmark_password", password);
 }
 
 function clearPassword() {
-  sessionStorage.removeItem("thinkmark_password");
+  localStorage.removeItem("thinkmark_password");
 }
 
 function showToast(message) {
