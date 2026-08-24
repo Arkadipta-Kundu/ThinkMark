@@ -72,12 +72,8 @@ button {
 .brand-mark {
   width: 30px;
   height: 30px;
-  border: 1px solid var(--text);
-  border-radius: 9px;
-  display: grid;
-  place-items: center;
-  font-size: 13px;
-  font-weight: 750;
+  display: block;
+  object-fit: contain;
 }
 
 nav {
