@@ -1,0 +1,11 @@
+{
+  "name": "thinkmark",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "wrangler pages dev public"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

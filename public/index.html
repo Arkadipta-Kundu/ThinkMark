@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f7f7f5">
+  <title>ThinkMark — Continue the thought.</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <div id="toast" class="toast"></div>
+
+  <main class="app-shell">
+
+    <header class="topbar">
+      <button class="brand" id="homeBtn" aria-label="Go home">
+        <span class="brand-mark">T</span>
+        <span>ThinkMark</span>
+      </button>
+
+      <nav>
+        <button class="nav-link active" data-view="home">Find</button>
+        <button class="nav-link" data-view="notes">All notes</button>
+        <button class="nav-link" data-view="settings">Settings</button>
+      </nav>
+    </header>
+
+    <section id="homeView" class="view active-view">
+      <div class="hero">
+        <div class="eyebrow">YOUR DIGITAL OVERFLOW</div>
+        <h1>Continue the thought.</h1>
+        <p class="hero-copy">
+          Save the thought you don't want to write down now.
+          Give it a small address. Come back to it later.
+        </p>
+
+        <form id="searchForm" class="search-card">
+          <label for="searchInput">ThinkMark code</label>
+          <div class="search-row">
+            <input
+              id="searchInput"
+              maxlength="5"
+              pattern="[a-zA-Z0-9]{5}"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="e.g. a3b6k"
+              required
+            >
+            <button class="primary-btn" type="submit">Open</button>
+          </div>
+        </form>
+
+        <button class="new-note-link" id="newNoteBtn">
+          <span>+</span> New note
+        </button>
+      </div>
+
+      <div class="recent-section">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">RECENT</span>
+            <h2>Your latest extensions</h2>
+          </div>
+          <button class="text-btn" data-view="notes">View all →</button>
+        </div>
+
+        <div id="recentList" class="note-list">
+          <div class="empty-state">No notes yet.</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="notesView" class="view">
+      <div class="page-heading">
+        <div>
+          <span class="eyebrow">ARCHIVE</span>
+          <h1>All notes</h1>
+        </div>
+
+        <button class="primary-btn" id="newNoteBtn2">+ New note</button>
+      </div>
+
+      <div class="toolbar">
+        <input id="listSearch" class="list-search" placeholder="Filter notes by code or content...">
+        <select id="sortSelect">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+        </select>
+      </div>
+
+      <div id="allNotesList" class="note-list">
+        <div class="empty-state">Loading...</div>
+      </div>
+    </section>
+
+    <section id="editorView" class="view">
+      <div class="editor-top">
+        <button class="back-btn" id="editorBack">← Back</button>
+        <span id="editorMode" class="eyebrow">NEW NOTE</span>
+      </div>
+
+      <div class="editor-card">
+        <div class="editor-header">
+          <div>
+            <span class="eyebrow">DIGITAL EXTENSION</span>
+            <h1 id="editorTitle">New note</h1>
+          </div>
+          <div id="codePreview" class="code-preview">?????</div>
+        </div>
+
+        <textarea
+          id="noteContent"
+          maxlength="100000"
+          placeholder="Write the thought you don't want to lose..."
+          autofocus
+        ></textarea>
+
+        <div class="editor-footer">
+          <span id="charCount">0 characters</span>
+          <div class="editor-actions">
+            <button class="secondary-btn" id="cancelBtn">Cancel</button>
+            <button class="primary-btn" id="saveBtn">Save & get code</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="noteView" class="view">
+      <div class="note-page">
+        <div class="note-page-top">
+          <button class="back-btn" id="noteBack">← Back</button>
+          <div class="note-actions">
+            <button class="secondary-btn" id="editBtn">Edit</button>
+            <button class="danger-btn" id="deleteBtn">Delete</button>
+          </div>
+        </div>
+
+        <div class="note-meta">
+          <span class="eyebrow">THINKMARK CODE</span>
+          <button id="noteCode" class="large-code" title="Copy code">a3b6k</button>
+          <div id="noteDate" class="note-date"></div>
+        </div>
+
+        <article id="noteContentView" class="note-content"></article>
+      </div>
+    </section>
+
+    <section id="settingsView" class="view">
+      <div class="page-heading">
+        <div>
+          <span class="eyebrow">PREFERENCES</span>
+          <h1>Settings</h1>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <div>
+          <h3>Backup</h3>
+          <p>Download every ThinkMark note as a JSON file.</p>
+        </div>
+        <button class="secondary-btn" id="exportBtn">Export notes</button>
+      </div>
+
+      <div class="settings-card danger-zone">
+        <div>
+          <h3>Session</h3>
+          <p>Clear the saved password from this browser.</p>
+        </div>
+        <button class="danger-btn" id="logoutBtn">Log out</button>
+      </div>
+
+      <p class="settings-note">
+        ThinkMark stores your notes remotely. Keep periodic backups because
+        free cloud services can change their policies.
+      </p>
+    </section>
+  </main>
+
+  <div id="passwordModal" class="modal-backdrop">
+    <form id="passwordForm" class="password-modal">
+      <div class="brand brand-static">
+        <span class="brand-mark">T</span>
+        <span>ThinkMark</span>
+      </div>
+      <span class="eyebrow">PRIVATE NOTEBOOK</span>
+      <h2>Welcome back.</h2>
+      <p>Enter your ThinkMark password to continue.</p>
+
+      <input
+        id="passwordInput"
+        type="password"
+        placeholder="Password"
+        autocomplete="current-password"
+        required
+      >
+
+      <button class="primary-btn full-btn" type="submit">Enter ThinkMark</button>
+      <div id="loginError" class="login-error"></div>
+    </form>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
