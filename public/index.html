@@ -3,8 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#f7f7f5">
+  <meta id="themeColorMeta" name="theme-color" content="#f7f7f5">
   <title>ThinkMark — Continue the thought.</title>
+  <script>
+    (() => {
+      try {
+        const theme = localStorage.getItem("thinkmark-theme");
+        if (theme === "dark" || theme === "light") {
+          document.documentElement.dataset.theme = theme;
+          document
+            .querySelector("#themeColorMeta")
+            ?.setAttribute("content", theme === "dark" ? "#111210" : "#f7f7f5");
+        }
+      } catch {}
+    })();
+  </script>
   <link rel="icon" type="image/png" href="/tab_logo.png">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -20,11 +33,24 @@
         <span>ThinkMark</span>
       </button>
 
-      <nav>
-        <button class="nav-link active" data-view="home">Find</button>
-        <button class="nav-link" data-view="notes">All notes</button>
-        <button class="nav-link" data-view="settings">Settings</button>
-      </nav>
+      <div class="topbar-actions">
+        <nav>
+          <button class="nav-link active" data-view="home">Find</button>
+          <button class="nav-link" data-view="notes">All notes</button>
+          <button class="nav-link" data-view="settings">Settings</button>
+        </nav>
+
+        <button
+          id="themeToggle"
+          class="theme-toggle"
+          type="button"
+          aria-label="Switch to dark mode"
+          title="Switch to dark mode"
+        >
+          <span class="theme-icon theme-icon-light" aria-hidden="true">☼</span>
+          <span class="theme-icon theme-icon-dark" aria-hidden="true">☾</span>
+        </button>
+      </div>
     </header>
 
     <section id="homeView" class="view active-view">

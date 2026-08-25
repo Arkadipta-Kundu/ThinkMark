@@ -3,13 +3,53 @@
   --surface: #ffffff;
   --surface-soft: #f0f0ec;
   --text: #181817;
+  --text-on-accent: #ffffff;
   --muted: #777770;
   --border: #deded8;
   --accent: #181817;
+  --focus-border: #9c9c94;
+  --focus-ring: rgba(20, 20, 15, .05);
   --danger: #b42318;
+  --danger-border: #e5c7c4;
+  --placeholder: #9b9b92;
+  --row-preview: #45453f;
+  --hover-border: #bdbdb5;
+  --hover-shadow: 0 8px 24px rgba(20, 20, 15, .04);
+  --modal-backdrop: rgba(247, 247, 245, .88);
+  --toast-bg: #181817;
+  --toast-text: #ffffff;
+  --selection-bg: rgba(24, 24, 23, .12);
+  --code-border: transparent;
   --shadow: 0 20px 60px rgba(20, 20, 15, 0.07);
   --radius: 18px;
   --max: 960px;
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg: #111210;
+  --surface: #191a17;
+  --surface-soft: #23241f;
+  --text: #eeeee7;
+  --text-on-accent: #111210;
+  --muted: #9c9d93;
+  --border: #303129;
+  --accent: #ded9bf;
+  --focus-border: #6f715f;
+  --focus-ring: rgba(222, 217, 191, .12);
+  --danger: #ff8f83;
+  --danger-border: #5a332e;
+  --placeholder: #727466;
+  --row-preview: #c2c2b8;
+  --hover-border: #555747;
+  --hover-shadow: 0 10px 28px rgba(0, 0, 0, .22);
+  --modal-backdrop: rgba(17, 18, 16, .88);
+  --toast-bg: #e8e5d6;
+  --toast-text: #111210;
+  --selection-bg: rgba(222, 217, 191, .2);
+  --code-border: #34362d;
+  --shadow: 0 22px 70px rgba(0, 0, 0, .28);
+  color-scheme: dark;
 }
 
 * {
@@ -18,6 +58,7 @@
 
 html {
   scroll-behavior: smooth;
+  scrollbar-color: var(--border) var(--bg);
 }
 
 body {
@@ -26,6 +67,28 @@ body {
   color: var(--text);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   line-height: 1.5;
+}
+
+::selection {
+  background: var(--selection-bg);
+}
+
+body::-webkit-scrollbar,
+.note-content pre::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+body::-webkit-scrollbar-track,
+.note-content pre::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+
+body::-webkit-scrollbar-thumb,
+.note-content pre::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border: 3px solid var(--bg);
+  border-radius: 999px;
 }
 
 button,
@@ -37,6 +100,11 @@ select {
 
 button {
   cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: .62;
 }
 
 .app-shell {
@@ -63,6 +131,7 @@ button {
   font-size: 16px;
   font-weight: 650;
   padding: 0;
+  flex: 0 0 auto;
 }
 
 .brand-static {
@@ -79,12 +148,21 @@ button {
 nav {
   display: flex;
   gap: 5px;
+  min-width: 0;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
 .nav-link,
 .text-btn,
 .back-btn,
-.new-note-link {
+.new-note-link,
+.theme-toggle {
   border: 0;
   background: transparent;
   color: var(--muted);
@@ -99,6 +177,53 @@ nav {
 .nav-link.active {
   color: var(--text);
   background: var(--surface-soft);
+}
+
+.theme-toggle {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  flex: 0 0 auto;
+  transition: background .15s, border-color .15s, color .15s, transform .12s;
+}
+
+.theme-toggle:hover {
+  color: var(--text);
+  background: var(--surface-soft);
+  border-color: var(--hover-border);
+  transform: translateY(-1px);
+}
+
+.theme-toggle:focus-visible {
+  outline: none;
+  border-color: var(--focus-border);
+  box-shadow: 0 0 0 4px var(--focus-ring);
+}
+
+.theme-icon {
+  grid-area: 1 / 1;
+  font-size: 15px;
+  line-height: 1;
+  transition: opacity .15s, transform .15s;
+}
+
+.theme-icon-dark {
+  opacity: 0;
+  transform: scale(.8) rotate(-20deg);
+}
+
+[data-theme="dark"] .theme-icon-light {
+  opacity: 0;
+  transform: scale(.8) rotate(20deg);
+}
+
+[data-theme="dark"] .theme-icon-dark {
+  opacity: 1;
+  transform: scale(1) rotate(0deg);
 }
 
 .view {
@@ -188,11 +313,24 @@ select {
   text-transform: lowercase;
 }
 
+input::placeholder,
+textarea::placeholder {
+  color: var(--placeholder);
+}
+
 input:focus,
 textarea:focus,
 select:focus {
-  border-color: #9c9c94;
-  box-shadow: 0 0 0 4px rgba(20, 20, 15, .05);
+  border-color: var(--focus-border);
+  box-shadow: 0 0 0 4px var(--focus-ring);
+}
+
+button:focus-visible,
+.large-code:focus-visible,
+.note-row:focus-visible {
+  outline: none;
+  border-color: var(--focus-border);
+  box-shadow: 0 0 0 4px var(--focus-ring);
 }
 
 .primary-btn,
@@ -206,7 +344,7 @@ select:focus {
 
 .primary-btn {
   background: var(--accent);
-  color: white;
+  color: var(--text-on-accent);
   border-color: var(--accent);
 }
 
@@ -218,13 +356,17 @@ select:focus {
 .danger-btn {
   background: var(--surface);
   color: var(--danger);
-  border-color: #e5c7c4;
+  border-color: var(--danger-border);
 }
 
 .primary-btn:hover,
 .secondary-btn:hover,
 .danger-btn:hover {
   transform: translateY(-1px);
+}
+
+.secondary-btn:hover {
+  border-color: var(--hover-border);
 }
 
 .new-note-link {
@@ -271,6 +413,12 @@ select:focus {
   font-size: 13px;
 }
 
+.text-btn:hover,
+.back-btn:hover,
+.new-note-link:hover {
+  color: var(--text);
+}
+
 .note-list {
   display: grid;
   gap: 8px;
@@ -291,8 +439,8 @@ select:focus {
 }
 
 .note-row:hover {
-  border-color: #bdbdb5;
-  box-shadow: 0 8px 24px rgba(20,20,15,.04);
+  border-color: var(--hover-border);
+  box-shadow: var(--hover-shadow);
 }
 
 .row-code {
@@ -306,7 +454,7 @@ select:focus {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  color: #45453f;
+  color: var(--row-preview);
 }
 
 .row-date {
@@ -418,6 +566,7 @@ select {
   font-size: 13px;
   padding: 7px 10px;
   background: var(--surface-soft);
+  border: 1px solid var(--code-border);
   border-radius: 8px;
 }
 
@@ -532,6 +681,15 @@ textarea::-webkit-scrollbar {
   font-family: Georgia, "Times New Roman", serif;
   font-weight: 500;
   line-height: 1.25;
+  color: var(--text);
+}
+
+.note-content strong {
+  color: var(--text);
+}
+
+.note-content em {
+  color: var(--row-preview);
 }
 
 .note-content h1 {
@@ -559,6 +717,7 @@ textarea::-webkit-scrollbar {
 
 .note-content code {
   background: var(--surface-soft);
+  border: 1px solid var(--code-border);
   border-radius: 5px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: .88em;
@@ -567,13 +726,16 @@ textarea::-webkit-scrollbar {
 
 .note-content pre {
   background: var(--surface-soft);
+  border: 1px solid var(--code-border);
   border-radius: 8px;
   overflow-x: auto;
   padding: 15px;
+  scrollbar-color: var(--border) var(--surface-soft);
 }
 
 .note-content pre code {
   background: transparent;
+  border: 0;
   border-radius: 0;
   display: block;
   line-height: 1.6;
@@ -582,9 +744,19 @@ textarea::-webkit-scrollbar {
 }
 
 .note-content a {
-  color: var(--text);
+  color: var(--accent);
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
+}
+
+.note-content blockquote {
+  border-left: 3px solid var(--hover-border);
+  color: var(--muted);
+  padding-left: 18px;
+}
+
+.note-content blockquote p {
+  margin: 0;
 }
 
 .settings-card {
@@ -611,7 +783,7 @@ textarea::-webkit-scrollbar {
 }
 
 .danger-zone {
-  border-color: #e5c7c4;
+  border-color: var(--danger-border);
 }
 
 .settings-note {
@@ -621,7 +793,7 @@ textarea::-webkit-scrollbar {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(247,247,245,.88);
+  background: var(--modal-backdrop);
   backdrop-filter: blur(12px);
   display: grid;
   place-items: center;
@@ -672,8 +844,8 @@ textarea::-webkit-scrollbar {
   left: 50%;
   bottom: 24px;
   transform: translate(-50%, 20px);
-  background: #181817;
-  color: white;
+  background: var(--toast-bg);
+  color: var(--toast-text);
   padding: 10px 15px;
   border-radius: 9px;
   font-size: 12px;
@@ -695,6 +867,7 @@ textarea::-webkit-scrollbar {
 
   .topbar {
     height: 70px;
+    gap: 12px;
   }
 
   nav {
@@ -704,6 +877,11 @@ textarea::-webkit-scrollbar {
   .nav-link {
     padding: 7px 8px;
     font-size: 12px;
+  }
+
+  .theme-toggle {
+    width: 32px;
+    height: 32px;
   }
 
   .hero {
@@ -794,5 +972,19 @@ textarea::-webkit-scrollbar {
   .settings-card {
     align-items: start;
     flex-direction: column;
+  }
+}
+
+@media (max-width: 430px) {
+  .topbar .brand span {
+    display: none;
+  }
+
+  .topbar-actions {
+    gap: 6px;
+  }
+
+  .nav-link {
+    padding-inline: 6px;
   }
 }

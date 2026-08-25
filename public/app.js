@@ -9,6 +9,17 @@ const state = {
 
 const NOTE_CODE_LENGTH = 4;
 const NOTE_CODE_PATTERN = new RegExp(`^[a-z0-9]{${NOTE_CODE_LENGTH}}$`);
+const THEME_STORAGE_KEY = "thinkmark-theme";
+const THEMES = {
+  light: {
+    label: "Switch to dark mode",
+    themeColor: "#f7f7f5"
+  },
+  dark: {
+    label: "Switch to light mode",
+    themeColor: "#111210"
+  }
+};
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -16,6 +27,7 @@ const passwordModal = $("#passwordModal");
 const passwordForm = $("#passwordForm");
 const passwordInput = $("#passwordInput");
 const loginError = $("#loginError");
+const themeToggle = $("#themeToggle");
 
 function showLogin() {
   passwordModal.style.display = "grid";
@@ -24,6 +36,37 @@ function showLogin() {
 
 function hideLogin() {
   passwordModal.style.display = "none";
+}
+
+function getStoredTheme() {
+  try {
+    const theme = localStorage.getItem(THEME_STORAGE_KEY);
+    return theme === "dark" || theme === "light" ? theme : "light";
+  } catch {
+    return "light";
+  }
+}
+
+function applyTheme(theme) {
+  const activeTheme = theme === "dark" ? "dark" : "light";
+  const themeConfig = THEMES[activeTheme];
+
+  document.documentElement.dataset.theme = activeTheme;
+  $("#themeColorMeta")?.setAttribute("content", themeConfig.themeColor);
+  themeToggle?.setAttribute("aria-label", themeConfig.label);
+  themeToggle?.setAttribute("title", themeConfig.label);
+}
+
+function toggleTheme() {
+  const nextTheme = document.documentElement.dataset.theme === "dark"
+    ? "light"
+    : "dark";
+
+  applyTheme(nextTheme);
+
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+  } catch {}
 }
 
 function showToast(message) {
@@ -222,6 +265,16 @@ function renderMarkdown(markdown) {
       continue;
     }
 
+    if (/^\s*>\s?/.test(line)) {
+      const quoteLines = [];
+      while (index < lines.length && /^\s*>\s?/.test(lines[index])) {
+        quoteLines.push(lines[index].replace(/^\s*>\s?/, "").trim());
+        index += 1;
+      }
+      blocks.push(`<blockquote><p>${renderInlineMarkdown(quoteLines.join(" "))}</p></blockquote>`);
+      continue;
+    }
+
     const paragraph = [];
     while (
       index < lines.length &&
@@ -229,7 +282,8 @@ function renderMarkdown(markdown) {
       !lines[index].trimStart().startsWith("```") &&
       !/^(#{1,6})\s+/.test(lines[index]) &&
       !/^\s*[-*]\s+/.test(lines[index]) &&
-      !/^\s*\d+[.)]\s+/.test(lines[index])
+      !/^\s*\d+[.)]\s+/.test(lines[index]) &&
+      !/^\s*>\s?/.test(lines[index])
     ) {
       paragraph.push(lines[index].trim());
       index += 1;
@@ -244,7 +298,7 @@ function renderMarkdown(markdown) {
 function sanitizeRenderedMarkdown(html) {
   const template = document.createElement("template");
   const allowedTags = new Set([
-    "A", "CODE", "EM", "H1", "H2", "H3", "H4", "H5", "H6",
+    "A", "BLOCKQUOTE", "CODE", "EM", "H1", "H2", "H3", "H4", "H5", "H6",
     "LI", "OL", "P", "PRE", "STRONG", "UL"
   ]);
   const allowedAttributes = {
@@ -541,6 +595,7 @@ $("#noteBack").addEventListener("click", () => showView("home"));
 $("#editBtn").addEventListener("click", () => openEditorForNote(state.currentNote));
 $("#deleteBtn").addEventListener("click", deleteCurrentNote);
 $("#exportBtn").addEventListener("click", exportNotes);
+themeToggle?.addEventListener("click", toggleTheme);
 
 $("#noteCode").addEventListener("click", async () => {
   await navigator.clipboard?.writeText($("#noteCode").textContent);
@@ -590,4 +645,5 @@ async function initializeAuth() {
   showLogin();
 }
 
+applyTheme(getStoredTheme());
 initializeAuth();
