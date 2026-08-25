@@ -1,4 +1,4 @@
-import { isAuthorized, unauthorized } from "../_auth.js";
+import { forbidden, isAuthorized, isSafeStateChangingRequest, unauthorized } from "../_auth.js";
 import { triggerNotesBackup } from "../_backup.js";
 import { supabaseRequest } from "../_supabase.js";
 
@@ -41,7 +41,7 @@ async function uniqueCode(env) {
 }
 
 export async function onRequestGet({ request, env }) {
-  if (!isAuthorized(request, env)) return unauthorized();
+  if (!(await isAuthorized(request, env))) return unauthorized();
 
   const url = new URL(request.url);
   const sort = url.searchParams.get("sort") === "oldest"
@@ -64,7 +64,8 @@ export async function onRequestGet({ request, env }) {
 }
 
 export async function onRequestPost({ request, env, waitUntil }) {
-  if (!isAuthorized(request, env)) return unauthorized();
+  if (!(await isAuthorized(request, env))) return unauthorized();
+  if (!isSafeStateChangingRequest(request)) return forbidden();
 
   let body;
 

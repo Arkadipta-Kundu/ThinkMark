@@ -17,16 +17,13 @@ const passwordForm = $("#passwordForm");
 const passwordInput = $("#passwordInput");
 const loginError = $("#loginError");
 
-function getPassword() {
-  return localStorage.getItem("thinkmark_password") || "";
+function showLogin() {
+  passwordModal.style.display = "grid";
+  setTimeout(() => passwordInput.focus(), 100);
 }
 
-function setPassword(password) {
-  localStorage.setItem("thinkmark_password", password);
-}
-
-function clearPassword() {
-  localStorage.removeItem("thinkmark_password");
+function hideLogin() {
+  passwordModal.style.display = "none";
 }
 
 function showToast(message) {
@@ -41,20 +38,17 @@ function showToast(message) {
 }
 
 async function api(path, options = {}) {
-  const password = getPassword();
-
   const response = await fetch(path, {
     ...options,
+    credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
-      "X-ThinkMark-Password": password,
       ...(options.headers || {})
     }
   });
 
   if (response.status === 401) {
-    clearPassword();
-    passwordModal.style.display = "grid";
+    showLogin();
     throw new Error("Unauthorized");
   }
 
@@ -366,18 +360,26 @@ passwordForm.addEventListener("submit", async (event) => {
   const password = passwordInput.value;
   if (!password) return;
 
-  setPassword(password);
   loginError.textContent = "";
 
   try {
-    await api("/api/notes?sort=newest");
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password })
+    });
+    const body = await response.json().catch(() => ({}));
 
-    passwordModal.style.display = "none";
+    if (!response.ok) {
+      throw new Error(body.error || "Wrong password or server unavailable.");
+    }
+
+    hideLogin();
     passwordInput.value = "";
     await loadRecent();
-  } catch {
-    clearPassword();
-    loginError.textContent = "Wrong password or server unavailable.";
+  } catch (error) {
+    loginError.textContent = error.message || "Wrong password or server unavailable.";
   }
 });
 
@@ -418,15 +420,30 @@ $("#sortSelect").addEventListener("change", loadAllNotes);
 $("#listSearch").addEventListener("input", renderFilteredNotes);
 $("#noteContent").addEventListener("input", updateCharCount);
 
-$("#logoutBtn").addEventListener("click", () => {
-  clearPassword();
+$("#logoutBtn").addEventListener("click", async () => {
+  await fetch("/api/auth/logout", {
+    method: "POST",
+    credentials: "same-origin"
+  }).catch(() => {});
+
   location.reload();
 });
 
-if (getPassword()) {
-  passwordModal.style.display = "none";
-  loadRecent();
-} else {
-  passwordModal.style.display = "grid";
-  setTimeout(() => passwordInput.focus(), 100);
+async function initializeAuth() {
+  try {
+    const response = await fetch("/api/auth/session", {
+      credentials: "same-origin"
+    });
+    const body = await response.json().catch(() => ({}));
+
+    if (response.ok && body.authenticated) {
+      hideLogin();
+      await loadRecent();
+      return;
+    }
+  } catch {}
+
+  showLogin();
 }
+
+initializeAuth();

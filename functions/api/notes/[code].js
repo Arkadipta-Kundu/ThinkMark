@@ -1,4 +1,4 @@
-import { isAuthorized, unauthorized } from "../_auth.js";
+import { forbidden, isAuthorized, isSafeStateChangingRequest, unauthorized } from "../_auth.js";
 import { triggerNotesBackup } from "../_backup.js";
 import { supabaseRequest } from "../_supabase.js";
 
@@ -10,7 +10,7 @@ function validCode(code) {
 }
 
 export async function onRequestGet({ params, request, env }) {
-  if (!isAuthorized(request, env)) return unauthorized();
+  if (!(await isAuthorized(request, env))) return unauthorized();
 
   const code = params.code?.toLowerCase();
 
@@ -46,7 +46,8 @@ export async function onRequestGet({ params, request, env }) {
 }
 
 export async function onRequestPut({ params, request, env, waitUntil }) {
-  if (!isAuthorized(request, env)) return unauthorized();
+  if (!(await isAuthorized(request, env))) return unauthorized();
+  if (!isSafeStateChangingRequest(request)) return forbidden();
 
   const code = params.code?.toLowerCase();
 
@@ -133,7 +134,8 @@ export async function onRequestPut({ params, request, env, waitUntil }) {
 }
 
 export async function onRequestDelete({ params, request, env, waitUntil }) {
-  if (!isAuthorized(request, env)) return unauthorized();
+  if (!(await isAuthorized(request, env))) return unauthorized();
+  if (!isSafeStateChangingRequest(request)) return forbidden();
 
   const code = params.code?.toLowerCase();
 
