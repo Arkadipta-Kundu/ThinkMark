@@ -128,6 +128,150 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function escapeAttribute(value) {
+  return escapeHtml(value).replaceAll("`", "&#096;");
+}
+
+function isSafeUrl(value) {
+  try {
+    const url = new URL(value, window.location.origin);
+    return ["http:", "https:", "mailto:"].includes(url.protocol);
+  } catch {
+    return false;
+  }
+}
+
+function renderInlineMarkdown(text) {
+  const codeParts = [];
+  const placeholder = (index) => `\u0000CODE${index}\u0000`;
+
+  let html = text.replace(/`([^`\n]+)`/g, (_, code) => {
+    const index = codeParts.push(`<code>${escapeHtml(code)}</code>`) - 1;
+    return placeholder(index);
+  });
+
+  html = escapeHtml(html)
+    .replace(/\[([^\]\n]+)\]\(([^)\s]+)\)/g, (match, label, href) => {
+      const decodedHref = href.replaceAll("&amp;", "&");
+      if (!isSafeUrl(decodedHref)) return match;
+
+      return `<a href="${escapeAttribute(decodedHref)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+    })
+    .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^\*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+
+  codeParts.forEach((code, index) => {
+    html = html.replaceAll(escapeHtml(placeholder(index)), code);
+  });
+
+  return html;
+}
+
+function renderMarkdown(markdown) {
+  const lines = String(markdown).replace(/\r\n?/g, "\n").split("\n");
+  const blocks = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index];
+
+    if (!line.trim()) {
+      index += 1;
+      continue;
+    }
+
+    if (line.trimStart().startsWith("```")) {
+      const codeLines = [];
+      index += 1;
+
+      while (index < lines.length && !lines[index].trimStart().startsWith("```")) {
+        codeLines.push(lines[index]);
+        index += 1;
+      }
+
+      if (index < lines.length) index += 1;
+      blocks.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,6})\s+(.+)$/);
+    if (heading) {
+      const level = heading[1].length;
+      blocks.push(`<h${level}>${renderInlineMarkdown(heading[2].trim())}</h${level}>`);
+      index += 1;
+      continue;
+    }
+
+    if (/^\s*[-*]\s+/.test(line)) {
+      const items = [];
+      while (index < lines.length && /^\s*[-*]\s+/.test(lines[index])) {
+        items.push(`<li>${renderInlineMarkdown(lines[index].replace(/^\s*[-*]\s+/, ""))}</li>`);
+        index += 1;
+      }
+      blocks.push(`<ul>${items.join("")}</ul>`);
+      continue;
+    }
+
+    if (/^\s*\d+[.)]\s+/.test(line)) {
+      const items = [];
+      while (index < lines.length && /^\s*\d+[.)]\s+/.test(lines[index])) {
+        items.push(`<li>${renderInlineMarkdown(lines[index].replace(/^\s*\d+[.)]\s+/, ""))}</li>`);
+        index += 1;
+      }
+      blocks.push(`<ol>${items.join("")}</ol>`);
+      continue;
+    }
+
+    const paragraph = [];
+    while (
+      index < lines.length &&
+      lines[index].trim() &&
+      !lines[index].trimStart().startsWith("```") &&
+      !/^(#{1,6})\s+/.test(lines[index]) &&
+      !/^\s*[-*]\s+/.test(lines[index]) &&
+      !/^\s*\d+[.)]\s+/.test(lines[index])
+    ) {
+      paragraph.push(lines[index].trim());
+      index += 1;
+    }
+
+    blocks.push(`<p>${renderInlineMarkdown(paragraph.join(" "))}</p>`);
+  }
+
+  return sanitizeRenderedMarkdown(blocks.join(""));
+}
+
+function sanitizeRenderedMarkdown(html) {
+  const template = document.createElement("template");
+  const allowedTags = new Set([
+    "A", "CODE", "EM", "H1", "H2", "H3", "H4", "H5", "H6",
+    "LI", "OL", "P", "PRE", "STRONG", "UL"
+  ]);
+  const allowedAttributes = {
+    A: new Set(["href", "rel", "target"])
+  };
+
+  template.innerHTML = html;
+
+  template.content.querySelectorAll("*").forEach(element => {
+    if (!allowedTags.has(element.tagName)) {
+      element.replaceWith(document.createTextNode(element.textContent));
+      return;
+    }
+
+    [...element.attributes].forEach(attribute => {
+      const allowed = allowedAttributes[element.tagName]?.has(attribute.name);
+      if (!allowed) element.removeAttribute(attribute.name);
+    });
+
+    if (element.tagName === "A" && !isSafeUrl(element.getAttribute("href"))) {
+      element.removeAttribute("href");
+    }
+  });
+
+  return template.innerHTML;
+}
+
 async function loadRecent() {
   try {
     const notes = await api("/api/notes?sort=newest");
@@ -177,7 +321,7 @@ async function openNote(code) {
     $("#noteDate").textContent =
       `Created ${formatDate(note.created_at)} · Updated ${formatDate(note.updated_at)}`;
 
-    $("#noteContentView").textContent = note.content;
+    $("#noteContentView").innerHTML = renderMarkdown(note.content);
 
     showView("note");
   } catch (error) {

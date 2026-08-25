@@ -434,6 +434,12 @@ textarea {
   font-family: Georgia, "Times New Roman", serif;
   font-size: 19px;
   line-height: 1.75;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+textarea::-webkit-scrollbar {
+  display: none;
 }
 
 #noteContent:focus {
@@ -502,12 +508,83 @@ textarea {
   border-radius: var(--radius);
   padding: 38px;
   box-shadow: var(--shadow);
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
   font-family: Georgia, "Times New Roman", serif;
   font-size: 19px;
   line-height: 1.8;
   min-height: 260px;
+}
+
+.note-content > * {
+  margin: 0 0 18px;
+}
+
+.note-content > *:last-child {
+  margin-bottom: 0;
+}
+
+.note-content h1,
+.note-content h2,
+.note-content h3,
+.note-content h4,
+.note-content h5,
+.note-content h6 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.note-content h1 {
+  font-size: 32px;
+}
+
+.note-content h2 {
+  font-size: 28px;
+}
+
+.note-content h3 {
+  font-size: 24px;
+}
+
+.note-content h4,
+.note-content h5,
+.note-content h6 {
+  font-size: 21px;
+}
+
+.note-content ul,
+.note-content ol {
+  padding-left: 26px;
+}
+
+.note-content code {
+  background: var(--surface-soft);
+  border-radius: 5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .88em;
+  padding: .1em .28em;
+}
+
+.note-content pre {
+  background: var(--surface-soft);
+  border-radius: 8px;
+  overflow-x: auto;
+  padding: 15px;
+}
+
+.note-content pre code {
+  background: transparent;
+  border-radius: 0;
+  display: block;
+  line-height: 1.6;
+  padding: 0;
+  white-space: pre;
+}
+
+.note-content a {
+  color: var(--text);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
 }
 
 .settings-card {
