@@ -2,6 +2,8 @@ const state = {
   currentView: "home",
   currentNote: null,
   editingCode: null,
+  editorDoneMode: false,
+  editorReturnView: "home",
   notes: []
 };
 
@@ -97,6 +99,13 @@ function preview(text) {
   return text.replace(/\s+/g, " ").trim().slice(0, 100);
 }
 
+function normalizeTitle(value) {
+  if (typeof value !== "string") return null;
+
+  const title = value.trim();
+  return title || null;
+}
+
 function renderNoteRows(notes, container) {
   if (!notes.length) {
     container.innerHTML = `<div class="empty-state">No notes yet.</div>`;
@@ -169,6 +178,8 @@ async function openNote(code) {
     state.currentNote = note;
 
     $("#noteCode").textContent = note.code;
+    $("#noteTitleView").textContent = note.title || "";
+    $("#noteTitleView").hidden = !note.title;
     $("#noteDate").textContent =
       `Created ${formatDate(note.created_at)} · Updated ${formatDate(note.updated_at)}`;
 
@@ -184,33 +195,46 @@ async function openNote(code) {
 
 function openNewNote() {
   state.editingCode = null;
+  state.editorDoneMode = false;
+  state.editorReturnView = "home";
 
   $("#editorMode").textContent = "NEW NOTE";
-  $("#editorTitle").textContent = "New note";
   $("#codePreview").textContent = "?".repeat(NOTE_CODE_LENGTH);
+  $("#noteTitle").value = "";
   $("#noteContent").value = "";
+  $("#noteTitle").readOnly = false;
+  $("#noteContent").readOnly = false;
+  $("#saveBtn").style.display = "";
+  $("#cancelBtn").textContent = "Cancel";
   updateCharCount();
   $("#saveBtn").textContent = "Save & get code";
 
   showView("editor");
-  setTimeout(() => $("#noteContent").focus(), 50);
+  setTimeout(() => $("#noteTitle").focus(), 50);
 }
 
 function openEditorForNote(note) {
   state.editingCode = note.code;
+  state.editorDoneMode = false;
+  state.editorReturnView = "note";
 
   $("#editorMode").textContent = "EDIT NOTE";
-  $("#editorTitle").textContent = "Edit note";
   $("#codePreview").textContent = note.code;
+  $("#noteTitle").value = note.title || "";
   $("#noteContent").value = note.content;
+  $("#noteTitle").readOnly = false;
+  $("#noteContent").readOnly = false;
+  $("#saveBtn").style.display = "";
+  $("#cancelBtn").textContent = "Back";
   updateCharCount();
   $("#saveBtn").textContent = "Save changes";
 
   showView("editor");
-  setTimeout(() => $("#noteContent").focus(), 50);
+  setTimeout(() => $("#noteTitle").focus(), 50);
 }
 
 async function saveNote() {
+  const title = normalizeTitle($("#noteTitle").value);
   const content = $("#noteContent").value.trim();
 
   if (!content) {
@@ -228,7 +252,7 @@ async function saveNote() {
         `/api/notes/${encodeURIComponent(state.editingCode)}`,
         {
           method: "PUT",
-          body: JSON.stringify({ content })
+          body: JSON.stringify({ title, content })
         }
       );
 
@@ -239,7 +263,7 @@ async function saveNote() {
     } else {
       const note = await api("/api/notes", {
         method: "POST",
-        body: JSON.stringify({ content })
+        body: JSON.stringify({ title, content })
       });
 
       state.currentNote = note;
@@ -255,20 +279,14 @@ async function saveNote() {
 }
 
 function showCodeSaved(code) {
+  state.editorDoneMode = true;
+  state.editorReturnView = "home";
   $("#editorMode").textContent = "SAVED";
-  $("#editorTitle").textContent = "Write this code in your notebook.";
   $("#codePreview").textContent = code;
+  $("#noteTitle").readOnly = true;
   $("#noteContent").readOnly = true;
   $("#saveBtn").style.display = "none";
   $("#cancelBtn").textContent = "Done";
-
-  $("#cancelBtn").onclick = () => {
-    $("#noteContent").readOnly = false;
-    $("#saveBtn").style.display = "";
-    $("#cancelBtn").textContent = "Cancel";
-    $("#cancelBtn").onclick = () => showView("home");
-    showView("home");
-  };
 
   navigator.clipboard?.writeText(code).catch(() => {});
   showToast(`Your code is ${code}`);
@@ -330,6 +348,18 @@ function updateCharCount() {
     `${$("#noteContent").value.length.toLocaleString()} characters`;
 }
 
+function cancelEditor() {
+  if (state.editorDoneMode) {
+    state.editorDoneMode = false;
+    $("#noteTitle").readOnly = false;
+    $("#noteContent").readOnly = false;
+    $("#saveBtn").style.display = "";
+    $("#cancelBtn").textContent = "Cancel";
+  }
+
+  showView(state.editorReturnView);
+}
+
 passwordForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
@@ -359,8 +389,8 @@ $("#homeBtn").addEventListener("click", () => showView("home"));
 $("#newNoteBtn").addEventListener("click", openNewNote);
 $("#newNoteBtn2").addEventListener("click", openNewNote);
 $("#saveBtn").addEventListener("click", saveNote);
-$("#cancelBtn").addEventListener("click", () => showView("home"));
-$("#editorBack").addEventListener("click", () => showView("home"));
+$("#cancelBtn").addEventListener("click", cancelEditor);
+$("#editorBack").addEventListener("click", cancelEditor);
 $("#noteBack").addEventListener("click", () => showView("home"));
 $("#editBtn").addEventListener("click", () => openEditorForNote(state.currentNote));
 $("#deleteBtn").addEventListener("click", deleteCurrentNote);

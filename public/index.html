@@ -104,19 +104,32 @@
 
       <div class="editor-card">
         <div class="editor-header">
-          <div>
-            <span class="eyebrow">DIGITAL EXTENSION</span>
-            <h1 id="editorTitle">New note</h1>
-          </div>
+          <span class="eyebrow">DIGITAL EXTENSION</span>
           <div id="codePreview" class="code-preview">????</div>
         </div>
 
-        <textarea
-          id="noteContent"
-          maxlength="100000"
-          placeholder="Write the thought you don't want to lose..."
-          autofocus
-        ></textarea>
+        <div class="editor-body">
+          <label class="editor-field" for="noteTitle">
+            <span class="editor-label">Title (optional)</span>
+            <input
+              id="noteTitle"
+              class="editor-title-input"
+              maxlength="200"
+              placeholder="Title (optional)"
+              autocomplete="off"
+            >
+          </label>
+
+          <label class="editor-field" for="noteContent">
+            <span class="editor-label">Note</span>
+            <textarea
+              id="noteContent"
+              maxlength="100000"
+              placeholder="Write your note here..."
+              autofocus
+            ></textarea>
+          </label>
+        </div>
 
         <div class="editor-footer">
           <span id="charCount">0 characters</span>
@@ -141,6 +154,7 @@
         <div class="note-meta">
           <span class="eyebrow">THINKMARK CODE</span>
           <button id="noteCode" class="large-code" title="Copy code">a3b6</button>
+          <h1 id="noteTitleView" class="note-title" hidden></h1>
           <div id="noteDate" class="note-date"></div>
         </div>
 

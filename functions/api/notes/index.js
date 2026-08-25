@@ -4,6 +4,7 @@ import { supabaseRequest } from "../_supabase.js";
 
 const CODE_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
 const CODE_LENGTH = 4;
+const MAX_TITLE_LENGTH = 200;
 
 function generateCode() {
   const bytes = crypto.getRandomValues(new Uint8Array(CODE_LENGTH));
@@ -49,7 +50,7 @@ export async function onRequestGet({ request, env }) {
 
   const response = await supabaseRequest(
     env,
-    `notes?select=code,content,created_at,updated_at&order=${sort}`
+    `notes?select=code,title,content,created_at,updated_at&order=${sort}`
   );
 
   if (!response.ok) {
@@ -79,6 +80,9 @@ export async function onRequestPost({ request, env, waitUntil }) {
   const content = typeof body.content === "string"
     ? body.content.trim()
     : "";
+  const title = typeof body.title === "string"
+    ? body.title.trim()
+    : "";
 
   if (!content) {
     return Response.json(
@@ -94,6 +98,13 @@ export async function onRequestPost({ request, env, waitUntil }) {
     );
   }
 
+  if (title.length > MAX_TITLE_LENGTH) {
+    return Response.json(
+      { error: "Title is too long." },
+      { status: 400 }
+    );
+  }
+
   try {
     const code = await uniqueCode(env);
 
@@ -104,6 +115,7 @@ export async function onRequestPost({ request, env, waitUntil }) {
       },
       body: JSON.stringify({
         code,
+        title: title || null,
         content
       })
     });

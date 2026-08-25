@@ -3,6 +3,7 @@ import { triggerNotesBackup } from "../_backup.js";
 import { supabaseRequest } from "../_supabase.js";
 
 const CODE_PATTERN = /^[a-z0-9]{4}$/;
+const MAX_TITLE_LENGTH = 200;
 
 function validCode(code) {
   return CODE_PATTERN.test(code);
@@ -22,7 +23,7 @@ export async function onRequestGet({ params, request, env }) {
 
   const response = await supabaseRequest(
     env,
-    `notes?select=code,content,created_at,updated_at&code=eq.${encodeURIComponent(code)}`
+    `notes?select=code,title,content,created_at,updated_at&code=eq.${encodeURIComponent(code)}`
   );
 
   if (!response.ok) {
@@ -70,6 +71,9 @@ export async function onRequestPut({ params, request, env, waitUntil }) {
   const content = typeof body.content === "string"
     ? body.content.trim()
     : "";
+  const title = typeof body.title === "string"
+    ? body.title.trim()
+    : "";
 
   if (!content) {
     return Response.json(
@@ -85,6 +89,13 @@ export async function onRequestPut({ params, request, env, waitUntil }) {
     );
   }
 
+  if (title.length > MAX_TITLE_LENGTH) {
+    return Response.json(
+      { error: "Title is too long." },
+      { status: 400 }
+    );
+  }
+
   const response = await supabaseRequest(
     env,
     `notes?code=eq.${encodeURIComponent(code)}`,
@@ -94,6 +105,7 @@ export async function onRequestPut({ params, request, env, waitUntil }) {
         "Prefer": "return=representation"
       },
       body: JSON.stringify({
+        title: title || null,
         content,
         updated_at: new Date().toISOString()
       })

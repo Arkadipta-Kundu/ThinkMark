@@ -359,17 +359,52 @@ select {
 }
 
 .editor-header {
-  padding: 28px 30px 18px;
+  padding: 22px 26px 0;
   display: flex;
-  align-items: start;
+  align-items: center;
   justify-content: space-between;
 }
 
-.editor-header h1 {
-  font-family: Georgia, "Times New Roman", serif;
+.editor-body {
+  padding: 18px 26px 0;
+}
+
+.editor-field {
+  display: block;
+}
+
+.editor-field + .editor-field {
+  margin-top: 18px;
+}
+
+.editor-label {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.editor-title-input {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 0 0 14px;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 17px;
   font-weight: 500;
-  font-size: 30px;
-  margin: 6px 0 0;
+  outline: none;
+}
+
+.editor-title-input::placeholder {
+  color: var(--muted);
+}
+
+.editor-title-input:focus {
+  box-shadow: none;
 }
 
 .code-preview,
@@ -392,11 +427,10 @@ textarea {
   min-height: 430px;
   resize: vertical;
   border: 0;
-  border-top: 1px solid var(--border);
   outline: 0;
-  padding: 28px 30px;
+  padding: 0 0 28px;
   color: var(--text);
-  background: var(--surface);
+  background: transparent;
   font-family: Georgia, "Times New Roman", serif;
   font-size: 19px;
   line-height: 1.75;
@@ -446,6 +480,14 @@ textarea {
 .note-date {
   color: var(--muted);
   font-size: 12px;
+}
+
+.note-title {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(28px, 5vw, 38px);
+  font-weight: 500;
+  letter-spacing: -.03em;
+  margin: 8px 0 10px;
 }
 
 .note-content {
@@ -625,11 +667,19 @@ textarea {
   }
 
   .editor-header {
-    padding: 22px;
+    padding: 20px 20px 0;
+  }
+
+  .editor-body {
+    padding: 18px 20px 0;
+  }
+
+  .editor-title-input {
+    font-size: 16px;
   }
 
   textarea {
-    padding: 22px;
+    padding: 0 0 22px;
     min-height: 380px;
   }
 

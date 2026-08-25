@@ -17,7 +17,7 @@ function toBase64(value) {
 async function fetchAllNotes(env) {
   const response = await supabaseRequest(
     env,
-    "notes?select=code,content,created_at,updated_at&order=created_at.asc"
+    "notes?select=code,title,content,created_at,updated_at&order=created_at.asc"
   );
 
   if (!response.ok) {
