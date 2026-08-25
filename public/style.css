@@ -436,6 +436,12 @@ textarea {
   line-height: 1.75;
 }
 
+#noteContent:focus {
+  outline: none;
+  border-color: transparent;
+  box-shadow: none;
+}
+
 .editor-footer {
   display: flex;
   align-items: center;
