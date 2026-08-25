@@ -146,6 +146,18 @@ button:disabled {
   object-fit: contain;
 }
 
+.brand-mark-dark {
+  display: none;
+}
+
+[data-theme="dark"] .brand-mark-light {
+  display: none;
+}
+
+[data-theme="dark"] .brand-mark-dark {
+  display: block;
+}
+
 nav {
   display: flex;
   gap: 5px;
