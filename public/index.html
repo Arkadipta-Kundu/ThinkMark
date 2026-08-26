@@ -342,6 +342,17 @@
     </form>
   </div>
 
+  <div id="deleteModal" class="modal-backdrop" hidden>
+    <section class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="deleteModalTitle">
+      <h2 id="deleteModalTitle">Delete note?</h2>
+      <p>This action cannot be undone.</p>
+      <div class="confirm-actions">
+        <button class="secondary-btn" id="deleteCancelBtn" type="button">Cancel</button>
+        <button class="danger-btn" id="deleteConfirmBtn" type="button">Delete</button>
+      </div>
+    </section>
+  </div>
+
   <script src="/app.js"></script>
 </body>
 </html>

@@ -34,6 +34,10 @@ const passwordInput = $("#passwordInput");
 const loginError = $("#loginError");
 const themeToggle = $("#themeToggle");
 const systemThemeQuery = window.matchMedia?.("(prefers-color-scheme: dark)");
+const deleteModal = $("#deleteModal");
+const deleteCancelBtn = $("#deleteCancelBtn");
+const deleteConfirmBtn = $("#deleteConfirmBtn");
+let pendingDeleteConfirmation = null;
 
 function showLogin() {
   passwordModal.style.display = "grid";
@@ -42,6 +46,31 @@ function showLogin() {
 
 function hideLogin() {
   passwordModal.style.display = "none";
+}
+
+function isDeleteModalOpen() {
+  return deleteModal && !deleteModal.hidden;
+}
+
+function closeDeleteModal(confirmed) {
+  if (!pendingDeleteConfirmation) return;
+
+  deleteModal.hidden = true;
+  const resolve = pendingDeleteConfirmation;
+  pendingDeleteConfirmation = null;
+  resolve(confirmed);
+}
+
+function confirmNoteDeletion() {
+  if (!deleteModal || !deleteCancelBtn || !deleteConfirmBtn) {
+    return Promise.resolve(false);
+  }
+
+  return new Promise(resolve => {
+    pendingDeleteConfirmation = resolve;
+    deleteModal.hidden = false;
+    deleteConfirmBtn.focus();
+  });
 }
 
 function getStoredTheme() {
@@ -801,9 +830,7 @@ async function deleteCurrentNote() {
     return;
   }
 
-  const confirmed = !shouldConfirmDeletion() || confirm(
-    `Delete note ${state.currentNote.code}? This cannot be undone.`
-  );
+  const confirmed = !shouldConfirmDeletion() || await confirmNoteDeletion();
 
   if (!confirmed) return;
 
@@ -934,6 +961,33 @@ function initializeSettingsControls() {
   });
 }
 
+function isTypingTarget(target) {
+  return Boolean(target?.closest?.("input, textarea, select, [contenteditable='true']"));
+}
+
+function canUseAppShortcuts(event) {
+  return !isTypingTarget(event.target) && passwordModal.style.display === "none" && !isDeleteModalOpen();
+}
+
+function handleKeyboardShortcuts(event) {
+  const key = event.key.toLowerCase();
+
+  if ((event.ctrlKey || event.metaKey) && key === "s") {
+    if (state.currentView !== "editor" || $("#saveBtn").disabled || $("#saveBtn").style.display === "none") {
+      return;
+    }
+
+    event.preventDefault();
+    saveNote();
+    return;
+  }
+
+  if (key === "n" && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && canUseAppShortcuts(event)) {
+    event.preventDefault();
+    openNewNote();
+  }
+}
+
 passwordForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
@@ -977,10 +1031,25 @@ $("#editorBack").addEventListener("click", cancelEditor);
 $("#noteBack").addEventListener("click", () => showView("home"));
 $("#editBtn").addEventListener("click", () => openEditorForNote(state.currentNote));
 $("#deleteBtn").addEventListener("click", deleteCurrentNote);
+deleteCancelBtn?.addEventListener("click", () => closeDeleteModal(false));
+deleteConfirmBtn?.addEventListener("click", () => closeDeleteModal(true));
+deleteModal?.addEventListener("click", event => {
+  if (event.target === deleteModal) closeDeleteModal(false);
+});
 $("#exportBtn")?.addEventListener("click", exportNotes);
 themeToggle?.addEventListener("click", toggleTheme);
 systemThemeQuery?.addEventListener("change", () => {
   if (getStoredTheme() === "system") applyTheme("system");
+});
+
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && isDeleteModalOpen()) {
+    event.preventDefault();
+    closeDeleteModal(false);
+    return;
+  }
+
+  handleKeyboardShortcuts(event);
 });
 
 $("#noteCode").addEventListener("click", async () => {

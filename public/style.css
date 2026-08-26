@@ -960,6 +960,10 @@ textarea::-webkit-scrollbar {
   z-index: 10;
 }
 
+.modal-backdrop[hidden] {
+  display: none;
+}
+
 .password-modal {
   width: min(100%, 390px);
   background: var(--surface);
@@ -969,6 +973,15 @@ textarea::-webkit-scrollbar {
   padding: 34px;
 }
 
+.confirm-modal {
+  width: min(100%, 340px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  padding: 26px;
+}
+
 .password-modal h2 {
   font-family: Georgia, "Times New Roman", serif;
   font-size: 32px;
@@ -976,10 +989,29 @@ textarea::-webkit-scrollbar {
   margin: 10px 0 7px;
 }
 
-.password-modal p {
+.confirm-modal h2 {
+  margin: 0 0 8px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: -.03em;
+}
+
+.password-modal p,
+.confirm-modal p {
   color: var(--muted);
   font-size: 13px;
   margin-bottom: 20px;
+}
+
+.confirm-modal p {
+  margin-top: 0;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 #passwordInput {
