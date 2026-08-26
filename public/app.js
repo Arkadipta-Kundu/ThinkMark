@@ -145,6 +145,8 @@ function applyTheme(theme) {
 
   document.documentElement.dataset.theme = activeTheme;
   document.documentElement.dataset.themePreference = themePreference;
+  document.documentElement.style.backgroundColor = themeConfig.themeColor;
+  document.documentElement.style.colorScheme = activeTheme;
   $("#themeColorMeta")?.setAttribute("content", themeConfig.themeColor);
   themeToggle?.setAttribute("aria-label", themeConfig.label);
   themeToggle?.setAttribute("title", themeConfig.label);
