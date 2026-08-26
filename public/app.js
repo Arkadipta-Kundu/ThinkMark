@@ -13,6 +13,7 @@ const THEME_STORAGE_KEY = "thinkmark-theme";
 const FONT_SIZE_STORAGE_KEY = "thinkmark-font-size";
 const DEFAULT_SORT_STORAGE_KEY = "thinkmark-default-sort";
 const CONFIRM_DELETION_STORAGE_KEY = "thinkmark-confirm-deletion";
+const NOTE_REFERENCE_PATTERN = /\[\[([a-z0-9]{4})\]\]/gi;
 const THEMES = {
   light: {
     label: "Switch to dark mode",
@@ -289,6 +290,30 @@ function normalizeTitle(value) {
   return title || null;
 }
 
+function normalizeNoteCode(value) {
+  return typeof value === "string" ? value.toLowerCase() : "";
+}
+
+function buildNoteIndex(notes) {
+  return new Map(notes.map(note => [normalizeNoteCode(note.code), note]));
+}
+
+function extractNoteReferences(content) {
+  const references = new Set();
+  const pattern = new RegExp(NOTE_REFERENCE_PATTERN);
+  let match;
+
+  while ((match = pattern.exec(content)) !== null) {
+    references.add(normalizeNoteCode(match[1]));
+  }
+
+  return references;
+}
+
+function noteLabel(note) {
+  return note.title || note.code;
+}
+
 function sortNotes(notes, sort) {
   if (sort === "updated") {
     return [...notes].sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
@@ -365,7 +390,22 @@ function splitTrailingPunctuation(value) {
   return { url, trailing };
 }
 
-function renderInlineMarkdown(text) {
+function renderNoteReference(match, code, referenceIndex) {
+  const normalizedCode = normalizeNoteCode(code);
+  const referencedNote = referenceIndex.get(normalizedCode);
+
+  if (!referencedNote) {
+    return `<span class="note-reference unresolved">${escapeHtml(match)}</span>`;
+  }
+
+  const label = referencedNote.title
+    ? `${referencedNote.title} (${referencedNote.code})`
+    : referencedNote.code;
+
+  return `<a class="note-reference" href="#${escapeAttribute(referencedNote.code)}" data-note-code="${escapeAttribute(referencedNote.code)}">→ ${escapeHtml(label)}</a>`;
+}
+
+function renderInlineMarkdown(text, referenceIndex = new Map()) {
   const codeParts = [];
   const markdownLinkParts = [];
   const placeholder = (index) => `\u0000CODE${index}\u0000`;
@@ -387,6 +427,7 @@ function renderInlineMarkdown(text) {
       const index = markdownLinkParts.push(link) - 1;
       return markdownLinkPlaceholder(index);
     })
+    .replace(NOTE_REFERENCE_PATTERN, (match, code) => renderNoteReference(match, code, referenceIndex))
     .replace(/(^|[\s(])((?:https?:\/\/|www\.)[^\s<]+)/g, (match, lead, maybeUrl) => {
       const { url, trailing } = splitTrailingPunctuation(maybeUrl);
       const normalizedUrl = normalizeAutoLinkUrl(url);
@@ -410,7 +451,7 @@ function renderInlineMarkdown(text) {
   return html;
 }
 
-function renderMarkdown(markdown) {
+function renderMarkdown(markdown, referenceIndex = new Map()) {
   const lines = String(markdown).replace(/\r\n?/g, "\n").split("\n");
   const blocks = [];
   let index = 0;
@@ -440,7 +481,7 @@ function renderMarkdown(markdown) {
     const heading = line.match(/^(#{1,6})\s+(.+)$/);
     if (heading) {
       const level = heading[1].length;
-      blocks.push(`<h${level}>${renderInlineMarkdown(heading[2].trim())}</h${level}>`);
+      blocks.push(`<h${level}>${renderInlineMarkdown(heading[2].trim(), referenceIndex)}</h${level}>`);
       index += 1;
       continue;
     }
@@ -448,7 +489,7 @@ function renderMarkdown(markdown) {
     if (/^\s*[-*]\s+/.test(line)) {
       const items = [];
       while (index < lines.length && /^\s*[-*]\s+/.test(lines[index])) {
-        items.push(`<li>${renderInlineMarkdown(lines[index].replace(/^\s*[-*]\s+/, ""))}</li>`);
+        items.push(`<li>${renderInlineMarkdown(lines[index].replace(/^\s*[-*]\s+/, ""), referenceIndex)}</li>`);
         index += 1;
       }
       blocks.push(`<ul>${items.join("")}</ul>`);
@@ -458,7 +499,7 @@ function renderMarkdown(markdown) {
     if (/^\s*\d+[.)]\s+/.test(line)) {
       const items = [];
       while (index < lines.length && /^\s*\d+[.)]\s+/.test(lines[index])) {
-        items.push(`<li>${renderInlineMarkdown(lines[index].replace(/^\s*\d+[.)]\s+/, ""))}</li>`);
+        items.push(`<li>${renderInlineMarkdown(lines[index].replace(/^\s*\d+[.)]\s+/, ""), referenceIndex)}</li>`);
         index += 1;
       }
       blocks.push(`<ol>${items.join("")}</ol>`);
@@ -471,7 +512,7 @@ function renderMarkdown(markdown) {
         quoteLines.push(lines[index].replace(/^\s*>\s?/, "").trim());
         index += 1;
       }
-      blocks.push(`<blockquote><p>${renderInlineMarkdown(quoteLines.join(" "))}</p></blockquote>`);
+      blocks.push(`<blockquote><p>${renderInlineMarkdown(quoteLines.join(" "), referenceIndex)}</p></blockquote>`);
       continue;
     }
 
@@ -489,7 +530,7 @@ function renderMarkdown(markdown) {
       index += 1;
     }
 
-    blocks.push(`<p>${renderInlineMarkdown(paragraph.join(" "))}</p>`);
+    blocks.push(`<p>${renderInlineMarkdown(paragraph.join(" "), referenceIndex)}</p>`);
   }
 
   return sanitizeRenderedMarkdown(blocks.join(""));
@@ -499,10 +540,11 @@ function sanitizeRenderedMarkdown(html) {
   const template = document.createElement("template");
   const allowedTags = new Set([
     "A", "BLOCKQUOTE", "CODE", "EM", "H1", "H2", "H3", "H4", "H5", "H6",
-    "LI", "OL", "P", "PRE", "STRONG", "UL"
+    "LI", "OL", "P", "PRE", "SPAN", "STRONG", "UL"
   ]);
   const allowedAttributes = {
-    A: new Set(["href", "rel", "target"])
+    A: new Set(["class", "data-note-code", "href", "rel", "target"]),
+    SPAN: new Set(["class"])
   };
 
   template.innerHTML = html;
@@ -522,7 +564,10 @@ function sanitizeRenderedMarkdown(html) {
       element.removeAttribute("href");
     }
 
-    if (element.tagName === "A" && element.getAttribute("href")) {
+    if (element.tagName === "A" && element.dataset.noteCode) {
+      element.removeAttribute("target");
+      element.removeAttribute("rel");
+    } else if (element.tagName === "A" && element.getAttribute("href")) {
       element.setAttribute("target", "_blank");
       element.setAttribute("rel", "noopener noreferrer");
     }
@@ -539,6 +584,43 @@ function renderNoteTimestamps(note) {
     <span>Created: ${escapeHtml(createdAt)}</span>
     <span>Updated: ${escapeHtml(updatedAt)}</span>
   `;
+}
+
+function findBacklinks(currentCode, notes) {
+  const normalizedCode = normalizeNoteCode(currentCode);
+
+  return notes.filter(note => {
+    const noteCode = normalizeNoteCode(note.code);
+    return noteCode !== normalizedCode && extractNoteReferences(note.content).has(normalizedCode);
+  });
+}
+
+function renderBacklinks(currentNote, notes) {
+  const backlinks = findBacklinks(currentNote.code, notes);
+  const container = $("#backlinks");
+
+  if (!backlinks.length) {
+    container.hidden = true;
+    container.innerHTML = "";
+    return;
+  }
+
+  container.hidden = false;
+  container.innerHTML = `
+    <h2>Referenced by</h2>
+    <div class="backlink-list">
+      ${backlinks.map(note => `
+        <button class="backlink-row" data-code="${escapeHtml(note.code)}">
+          <span class="backlink-code">→ ${escapeHtml(note.code)}</span>
+          <span class="backlink-title">${escapeHtml(noteLabel(note))}</span>
+        </button>
+      `).join("")}
+    </div>
+  `;
+
+  container.querySelectorAll(".backlink-row").forEach(row => {
+    row.addEventListener("click", () => openNote(row.dataset.code));
+  });
 }
 
 async function loadRecent() {
@@ -582,7 +664,13 @@ function renderFilteredNotes() {
 
 async function openNote(code) {
   try {
-    const note = await api(`/api/notes/${encodeURIComponent(code)}`);
+    const [note, notes] = await Promise.all([
+      api(`/api/notes/${encodeURIComponent(code)}`),
+      api("/api/notes?sort=newest")
+    ]);
+    const referenceIndex = buildNoteIndex(notes);
+
+    state.notes = notes;
     state.currentNote = note;
 
     $("#noteCode").textContent = note.code;
@@ -590,7 +678,8 @@ async function openNote(code) {
     $("#noteTitleView").hidden = !note.title;
     $("#noteDate").innerHTML = renderNoteTimestamps(note);
 
-    $("#noteContentView").innerHTML = renderMarkdown(note.content);
+    $("#noteContentView").innerHTML = renderMarkdown(note.content, referenceIndex);
+    renderBacklinks(note, notes);
 
     showView("note");
   } catch (error) {
@@ -897,6 +986,15 @@ systemThemeQuery?.addEventListener("change", () => {
 $("#noteCode").addEventListener("click", async () => {
   await navigator.clipboard?.writeText($("#noteCode").textContent);
   showToast("Code copied.");
+});
+
+$("#noteContentView").addEventListener("click", event => {
+  const reference = event.target.closest("[data-note-code]");
+
+  if (!reference) return;
+
+  event.preventDefault();
+  openNote(reference.dataset.noteCode);
 });
 
 $("#searchForm").addEventListener("submit", event => {
