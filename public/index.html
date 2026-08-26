@@ -17,13 +17,28 @@
     (() => {
       try {
         const theme = localStorage.getItem("thinkmark-theme");
-        if (theme === "dark" || theme === "light") {
-          document.documentElement.dataset.theme = theme;
-          document
-            .querySelector("#themeColorMeta")
-            ?.setAttribute("content", theme === "dark" ? "#111210" : "#f7f7f5");
-        }
-      } catch {}
+        const themePreference =
+          theme === "dark" || theme === "light" || theme === "system" ? theme : "light";
+        const systemDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches;
+        const activeTheme = themePreference === "system"
+          ? systemDark ? "dark" : "light"
+          : themePreference;
+
+        document.documentElement.dataset.theme = activeTheme;
+        document.documentElement.dataset.themePreference = themePreference;
+        document
+          .querySelector("#themeColorMeta")
+          ?.setAttribute("content", activeTheme === "dark" ? "#111210" : "#f7f7f5");
+
+        const fontSize = localStorage.getItem("thinkmark-font-size");
+        document.documentElement.dataset.fontSize =
+          fontSize === "small" || fontSize === "medium" || fontSize === "large"
+            ? fontSize
+            : "medium";
+      } catch {
+        document.documentElement.dataset.themePreference = "light";
+        document.documentElement.dataset.fontSize = "medium";
+      }
     })();
   </script>
   <link rel="icon" type="image/png" href="/tab_logo.png">
@@ -125,6 +140,7 @@
         <select id="sortSelect">
           <option value="newest">Newest first</option>
           <option value="oldest">Oldest first</option>
+          <option value="updated">Recently updated</option>
         </select>
       </div>
 
@@ -207,26 +223,97 @@
         </div>
       </div>
 
-      <div class="settings-card">
-        <div>
-          <h3>Backup</h3>
-          <p>Download every ThinkMark note as a JSON file.</p>
-        </div>
-        <button class="secondary-btn" id="exportBtn">Export notes</button>
-      </div>
+      <div class="settings-list">
+        <section class="settings-section" aria-labelledby="appearanceSettings">
+          <h2 id="appearanceSettings">Appearance</h2>
 
-      <div class="settings-card danger-zone">
-        <div>
-          <h3>Session</h3>
-          <p>Clear the saved password from this browser.</p>
-        </div>
-        <button class="danger-btn" id="logoutBtn">Log out</button>
-      </div>
+          <div class="setting-row">
+            <h3>Theme</h3>
+            <fieldset class="segmented-control" aria-label="Theme">
+              <label>
+                <input type="radio" name="themePreference" value="light">
+                <span>Light</span>
+              </label>
+              <label>
+                <input type="radio" name="themePreference" value="dark">
+                <span>Dark</span>
+              </label>
+              <label>
+                <input type="radio" name="themePreference" value="system">
+                <span>System</span>
+              </label>
+            </fieldset>
+          </div>
 
-      <p class="settings-note">
-        ThinkMark stores your notes remotely. Keep periodic backups because
-        free cloud services can change their policies.
-      </p>
+          <div class="setting-row">
+            <h3>Font size</h3>
+            <fieldset class="segmented-control" aria-label="Font size">
+              <label>
+                <input type="radio" name="fontSizePreference" value="small">
+                <span>Small</span>
+              </label>
+              <label>
+                <input type="radio" name="fontSizePreference" value="medium">
+                <span>Medium</span>
+              </label>
+              <label>
+                <input type="radio" name="fontSizePreference" value="large">
+                <span>Large</span>
+              </label>
+            </fieldset>
+          </div>
+        </section>
+
+        <section class="settings-section" aria-labelledby="notesSettings">
+          <h2 id="notesSettings">Notes</h2>
+
+          <div class="setting-row">
+            <h3>Default sorting</h3>
+            <select id="defaultSortSelect" aria-label="Default sorting">
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+              <option value="updated">Recently updated</option>
+            </select>
+          </div>
+
+          <div class="setting-row">
+            <h3>Confirm deletion</h3>
+            <fieldset class="segmented-control compact" aria-label="Confirm deletion">
+              <label>
+                <input type="radio" name="confirmDeletionPreference" value="on">
+                <span>On</span>
+              </label>
+              <label>
+                <input type="radio" name="confirmDeletionPreference" value="off">
+                <span>Off</span>
+              </label>
+            </fieldset>
+          </div>
+        </section>
+
+        <section class="settings-section" aria-labelledby="backupSettings">
+          <h2 id="backupSettings">Backup</h2>
+
+          <div class="setting-row">
+            <h3>Total notes</h3>
+            <span id="settingsTotalNotes" class="setting-value">Loading...</span>
+          </div>
+
+          <div id="lastBackupRow" class="setting-row" hidden>
+            <h3>Last successful backup</h3>
+            <span id="settingsLastBackup" class="setting-value"></span>
+          </div>
+        </section>
+
+        <section class="settings-section danger-section" aria-labelledby="securitySettings">
+          <h2 id="securitySettings">Security</h2>
+
+          <div class="setting-row">
+            <h3>Log out</h3>
+            <button class="danger-btn" id="logoutBtn">Log out</button>
+          </div>
+        </section>
+      </div>
     </section>
   </main>
 

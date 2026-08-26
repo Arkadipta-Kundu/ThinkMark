@@ -10,6 +10,13 @@ const state = {
 const NOTE_CODE_LENGTH = 4;
 const NOTE_CODE_PATTERN = new RegExp(`^[a-z0-9]{${NOTE_CODE_LENGTH}}$`);
 const THEME_STORAGE_KEY = "thinkmark-theme";
+const FONT_SIZE_STORAGE_KEY = "thinkmark-font-size";
+const DEFAULT_SORT_STORAGE_KEY = "thinkmark-default-sort";
+const CONFIRM_DELETION_STORAGE_KEY = "thinkmark-confirm-deletion";
+const BACKUP_TIME_STORAGE_KEYS = [
+  "thinkmark-last-successful-backup",
+  "thinkmark-last-backup-at"
+];
 const THEMES = {
   light: {
     label: "Switch to dark mode",
@@ -29,6 +36,7 @@ const passwordForm = $("#passwordForm");
 const passwordInput = $("#passwordInput");
 const loginError = $("#loginError");
 const themeToggle = $("#themeToggle");
+const systemThemeQuery = window.matchMedia?.("(prefers-color-scheme: dark)");
 
 function showLogin() {
   passwordModal.style.display = "grid";
@@ -42,20 +50,35 @@ function hideLogin() {
 function getStoredTheme() {
   try {
     const theme = localStorage.getItem(THEME_STORAGE_KEY);
-    return theme === "dark" || theme === "light" ? theme : "light";
+    return theme === "dark" || theme === "light" || theme === "system" ? theme : "light";
   } catch {
     return "light";
   }
 }
 
+function getActiveTheme(theme) {
+  if (theme === "system") {
+    return systemThemeQuery?.matches ? "dark" : "light";
+  }
+
+  return theme === "dark" ? "dark" : "light";
+}
+
 function applyTheme(theme) {
-  const activeTheme = theme === "dark" ? "dark" : "light";
+  const themePreference = theme === "dark" || theme === "system" ? theme : "light";
+  const activeTheme = getActiveTheme(themePreference);
   const themeConfig = THEMES[activeTheme];
 
   document.documentElement.dataset.theme = activeTheme;
+  document.documentElement.dataset.themePreference = themePreference;
   $("#themeColorMeta")?.setAttribute("content", themeConfig.themeColor);
   themeToggle?.setAttribute("aria-label", themeConfig.label);
   themeToggle?.setAttribute("title", themeConfig.label);
+  document
+    .querySelectorAll("input[name='themePreference']")
+    .forEach(input => {
+      input.checked = input.value === themePreference;
+    });
 }
 
 function toggleTheme() {
@@ -63,11 +86,83 @@ function toggleTheme() {
     ? "light"
     : "dark";
 
-  applyTheme(nextTheme);
+  saveThemePreference(nextTheme);
+}
+
+function saveThemePreference(theme) {
+  applyTheme(theme);
 
   try {
-    localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
   } catch { }
+}
+
+function getStoredFontSize() {
+  try {
+    const fontSize = localStorage.getItem(FONT_SIZE_STORAGE_KEY);
+    return fontSize === "small" || fontSize === "large" ? fontSize : "medium";
+  } catch {
+    return "medium";
+  }
+}
+
+function applyFontSize(fontSize) {
+  const activeFontSize = fontSize === "small" || fontSize === "large" ? fontSize : "medium";
+  document.documentElement.dataset.fontSize = activeFontSize;
+  document
+    .querySelectorAll("input[name='fontSizePreference']")
+    .forEach(input => {
+      input.checked = input.value === activeFontSize;
+    });
+}
+
+function saveFontSize(fontSize) {
+  applyFontSize(fontSize);
+
+  try {
+    localStorage.setItem(FONT_SIZE_STORAGE_KEY, fontSize);
+  } catch { }
+}
+
+function getStoredDefaultSort() {
+  try {
+    const sort = localStorage.getItem(DEFAULT_SORT_STORAGE_KEY);
+    return sort === "oldest" || sort === "updated" ? sort : "newest";
+  } catch {
+    return "newest";
+  }
+}
+
+function saveDefaultSort(sort) {
+  const activeSort = sort === "oldest" || sort === "updated" ? sort : "newest";
+
+  try {
+    localStorage.setItem(DEFAULT_SORT_STORAGE_KEY, activeSort);
+  } catch { }
+
+  $("#sortSelect").value = activeSort;
+}
+
+function shouldConfirmDeletion() {
+  try {
+    return localStorage.getItem(CONFIRM_DELETION_STORAGE_KEY) !== "off";
+  } catch {
+    return true;
+  }
+}
+
+function saveConfirmDeletion(value) {
+  const activeValue = value === "off" ? "off" : "on";
+
+  try {
+    localStorage.setItem(CONFIRM_DELETION_STORAGE_KEY, activeValue);
+  } catch { }
+
+  document
+    .querySelectorAll("input[name='confirmDeletionPreference']")
+    .forEach(input => {
+      input.checked = input.value === activeValue;
+    });
 }
 
 function showToast(message) {
@@ -176,6 +271,7 @@ function showView(viewName) {
 
   if (viewName === "home") loadRecent();
   if (viewName === "notes") loadAllNotes();
+  if (viewName === "settings") loadSettingsStats();
 }
 
 function formatDate(value) {
@@ -195,6 +291,14 @@ function normalizeTitle(value) {
 
   const title = value.trim();
   return title || null;
+}
+
+function sortNotes(notes, sort) {
+  if (sort === "updated") {
+    return [...notes].sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+  }
+
+  return notes;
 }
 
 function renderNoteRows(notes, container) {
@@ -448,8 +552,9 @@ async function loadAllNotes() {
 
   try {
     const sort = $("#sortSelect").value;
-    const notes = await api(`/api/notes?sort=${sort}`);
-    state.notes = notes;
+    const apiSort = sort === "oldest" ? "oldest" : "newest";
+    const notes = await api(`/api/notes?sort=${apiSort}`);
+    state.notes = sortNotes(notes, sort);
     renderFilteredNotes();
   } catch (error) {
     if (error.message !== "Unauthorized") {
@@ -602,7 +707,7 @@ async function deleteCurrentNote() {
     return;
   }
 
-  const confirmed = confirm(
+  const confirmed = !shouldConfirmDeletion() || confirm(
     `Delete note ${state.currentNote.code}? This cannot be undone.`
   );
 
@@ -672,6 +777,90 @@ function cancelEditor() {
   showView(state.editorReturnView);
 }
 
+function formatDateTime(value) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  return new Intl.DateTimeFormat(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(date);
+}
+
+function getExistingBackupTime() {
+  try {
+    for (const key of BACKUP_TIME_STORAGE_KEYS) {
+      const value = localStorage.getItem(key);
+      if (value) return value;
+    }
+  } catch { }
+
+  return "";
+}
+
+async function loadSettingsStats() {
+  const totalNotes = $("#settingsTotalNotes");
+  const lastBackupRow = $("#lastBackupRow");
+  const lastBackup = $("#settingsLastBackup");
+
+  if (totalNotes) totalNotes.textContent = "Loading...";
+
+  try {
+    const notes = await api("/api/notes?sort=newest");
+    state.notes = notes;
+    if (totalNotes) totalNotes.textContent = notes.length.toLocaleString();
+  } catch (error) {
+    if (error.message !== "Unauthorized" && totalNotes) {
+      totalNotes.textContent = error.message;
+    }
+  }
+
+  const backupTime = formatDateTime(getExistingBackupTime());
+  if (backupTime && lastBackupRow && lastBackup) {
+    lastBackup.textContent = backupTime;
+    lastBackupRow.hidden = false;
+  } else if (lastBackupRow) {
+    lastBackupRow.hidden = true;
+  }
+}
+
+function initializeSettingsControls() {
+  applyTheme(getStoredTheme());
+  applyFontSize(getStoredFontSize());
+
+  const defaultSort = getStoredDefaultSort();
+  $("#sortSelect").value = defaultSort;
+  $("#defaultSortSelect").value = defaultSort;
+  saveConfirmDeletion(shouldConfirmDeletion() ? "on" : "off");
+
+  document
+    .querySelectorAll("input[name='themePreference']")
+    .forEach(input => {
+      input.addEventListener("change", () => saveThemePreference(input.value));
+    });
+
+  document
+    .querySelectorAll("input[name='fontSizePreference']")
+    .forEach(input => {
+      input.addEventListener("change", () => saveFontSize(input.value));
+    });
+
+  document
+    .querySelectorAll("input[name='confirmDeletionPreference']")
+    .forEach(input => {
+      input.addEventListener("change", () => saveConfirmDeletion(input.value));
+    });
+
+  $("#defaultSortSelect").addEventListener("change", () => {
+    saveDefaultSort($("#defaultSortSelect").value);
+    if (state.currentView === "notes") loadAllNotes();
+  });
+}
+
 passwordForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
@@ -715,8 +904,11 @@ $("#editorBack").addEventListener("click", cancelEditor);
 $("#noteBack").addEventListener("click", () => showView("home"));
 $("#editBtn").addEventListener("click", () => openEditorForNote(state.currentNote));
 $("#deleteBtn").addEventListener("click", deleteCurrentNote);
-$("#exportBtn").addEventListener("click", exportNotes);
+$("#exportBtn")?.addEventListener("click", exportNotes);
 themeToggle?.addEventListener("click", toggleTheme);
+systemThemeQuery?.addEventListener("change", () => {
+  if (getStoredTheme() === "system") applyTheme("system");
+});
 
 $("#noteCode").addEventListener("click", async () => {
   await navigator.clipboard?.writeText($("#noteCode").textContent);
@@ -774,7 +966,7 @@ async function initializeAuth() {
   showLogin();
 }
 
-applyTheme(getStoredTheme());
+initializeSettingsControls();
 registerServiceWorker();
 registerConnectionStatus();
 initializeAuth();
