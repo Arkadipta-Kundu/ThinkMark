@@ -4,7 +4,8 @@ const state = {
   editingCode: null,
   editorDoneMode: false,
   editorReturnView: "home",
-  notes: []
+  notes: [],
+  notesLoaded: false
 };
 
 const NOTE_CODE_LENGTH = 4;
@@ -38,6 +39,7 @@ const deleteModal = $("#deleteModal");
 const deleteCancelBtn = $("#deleteCancelBtn");
 const deleteConfirmBtn = $("#deleteConfirmBtn");
 let pendingDeleteConfirmation = null;
+let noteListRequest = null;
 
 function showLogin() {
   passwordModal.style.display = "grid";
@@ -271,10 +273,10 @@ function registerConnectionStatus() {
   window.addEventListener("online", () => {
     showToast("Back online. Fetching latest notes.");
 
-    if (state.currentView === "home") loadRecent();
-    if (state.currentView === "notes") loadAllNotes();
+    if (state.currentView === "home") loadRecent({ force: true });
+    if (state.currentView === "notes") loadAllNotes({ force: true });
     if (state.currentView === "note" && state.currentNote?.code) {
-      openNote(state.currentNote.code);
+      openNote(state.currentNote.code, { force: true });
     }
   });
 }
@@ -344,11 +346,100 @@ function noteLabel(note) {
 }
 
 function sortNotes(notes, sort) {
+  if (sort === "oldest") {
+    return [...notes].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  }
+
   if (sort === "updated") {
     return [...notes].sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
   }
 
-  return notes;
+  return [...notes].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+}
+
+function noteHasCompleteData(note) {
+  return Boolean(
+    note &&
+    typeof note.code === "string" &&
+    typeof note.content === "string" &&
+    typeof note.created_at === "string" &&
+    typeof note.updated_at === "string"
+  );
+}
+
+function findNoteInState(code) {
+  const normalizedCode = normalizeNoteCode(code);
+  return state.notes.find(note => normalizeNoteCode(note.code) === normalizedCode);
+}
+
+function setNotes(notes) {
+  state.notes = Array.isArray(notes) ? notes.filter(noteHasCompleteData) : [];
+  state.notesLoaded = true;
+}
+
+function upsertNoteInState(note) {
+  if (!noteHasCompleteData(note)) return false;
+
+  const normalizedCode = normalizeNoteCode(note.code);
+  const index = state.notes.findIndex(existing => normalizeNoteCode(existing.code) === normalizedCode);
+
+  if (index === -1) {
+    state.notes = [note, ...state.notes];
+  } else {
+    state.notes = [
+      ...state.notes.slice(0, index),
+      note,
+      ...state.notes.slice(index + 1)
+    ];
+  }
+
+  return true;
+}
+
+function removeNoteFromState(code) {
+  const normalizedCode = normalizeNoteCode(code);
+  state.notes = state.notes.filter(note => normalizeNoteCode(note.code) !== normalizedCode);
+}
+
+function getNotesForSort(sort) {
+  return sortNotes(state.notes, sort);
+}
+
+function renderCurrentNote(note) {
+  const referenceIndex = buildNoteIndex(state.notes);
+
+  state.currentNote = note;
+
+  $("#noteCode").textContent = note.code;
+  $("#noteTitleView").textContent = note.title || "";
+  $("#noteTitleView").hidden = !note.title;
+  $("#noteDate").innerHTML = renderNoteTimestamps(note);
+
+  $("#noteContentView").innerHTML = renderMarkdown(note.content, referenceIndex);
+  renderBacklinks(note, state.notes);
+}
+
+async function loadNoteList(sort = "newest", options = {}) {
+  if (!options.force && state.notesLoaded) {
+    return getNotesForSort(sort);
+  }
+
+  if (noteListRequest) {
+    return noteListRequest.then(() => getNotesForSort(sort));
+  }
+
+  const apiSort = sort === "oldest" ? "oldest" : "newest";
+
+  noteListRequest = api(`/api/notes?sort=${apiSort}`)
+    .then(notes => {
+      setNotes(notes);
+      return getNotesForSort(sort);
+    })
+    .finally(() => {
+      noteListRequest = null;
+    });
+
+  return noteListRequest;
 }
 
 function renderNoteRows(notes, container) {
@@ -652,10 +743,9 @@ function renderBacklinks(currentNote, notes) {
   });
 }
 
-async function loadRecent() {
+async function loadRecent(options = {}) {
   try {
-    const notes = await api("/api/notes?sort=newest");
-    state.notes = notes;
+    const notes = await loadNoteList("newest", options);
     renderNoteRows(notes.slice(0, 5), $("#recentList"));
   } catch (error) {
     if (error.message !== "Unauthorized") {
@@ -664,14 +754,14 @@ async function loadRecent() {
   }
 }
 
-async function loadAllNotes() {
-  $("#allNotesList").innerHTML = `<div class="empty-state">Loading...</div>`;
+async function loadAllNotes(options = {}) {
+  if (!state.notesLoaded || options.force) {
+    $("#allNotesList").innerHTML = `<div class="empty-state">Loading...</div>`;
+  }
 
   try {
     const sort = $("#sortSelect").value;
-    const apiSort = sort === "oldest" ? "oldest" : "newest";
-    const notes = await api(`/api/notes?sort=${apiSort}`);
-    state.notes = sortNotes(notes, sort);
+    await loadNoteList(sort, options);
     renderFilteredNotes();
   } catch (error) {
     if (error.message !== "Unauthorized") {
@@ -682,8 +772,9 @@ async function loadAllNotes() {
 
 function renderFilteredNotes() {
   const query = $("#listSearch").value.trim().toLowerCase();
+  const notes = getNotesForSort($("#sortSelect").value);
 
-  const filtered = state.notes.filter(note =>
+  const filtered = notes.filter(note =>
     note.code.includes(query) ||
     note.content.toLowerCase().includes(query)
   );
@@ -691,24 +782,24 @@ function renderFilteredNotes() {
   renderNoteRows(filtered, $("#allNotesList"));
 }
 
-async function openNote(code) {
+async function openNote(code, options = {}) {
   try {
-    const [note, notes] = await Promise.all([
-      api(`/api/notes/${encodeURIComponent(code)}`),
-      api("/api/notes?sort=newest")
-    ]);
-    const referenceIndex = buildNoteIndex(notes);
+    const cachedNote = options.force ? null : findNoteInState(code);
+    let note = noteHasCompleteData(cachedNote) ? cachedNote : null;
 
-    state.notes = notes;
-    state.currentNote = note;
+    if (!note && state.notesLoaded && !options.force) {
+      note = await api(`/api/notes/${encodeURIComponent(code)}`);
+      upsertNoteInState(note);
+    } else if (!state.notesLoaded || options.force) {
+      const [loadedNote] = await Promise.all([
+        note ? Promise.resolve(note) : api(`/api/notes/${encodeURIComponent(code)}`),
+        loadNoteList("newest", options)
+      ]);
+      note = loadedNote;
+      upsertNoteInState(note);
+    }
 
-    $("#noteCode").textContent = note.code;
-    $("#noteTitleView").textContent = note.title || "";
-    $("#noteTitleView").hidden = !note.title;
-    $("#noteDate").innerHTML = renderNoteTimestamps(note);
-
-    $("#noteContentView").innerHTML = renderMarkdown(note.content, referenceIndex);
-    renderBacklinks(note, notes);
+    renderCurrentNote(note);
 
     showView("note");
   } catch (error) {
@@ -786,15 +877,25 @@ async function saveNote() {
         }
       );
 
+      if (!upsertNoteInState(note)) {
+        await openNote(note.code, { force: true });
+        return;
+      }
+
       state.currentNote = note;
       $("#codePreview").textContent = note.code;
       showToast("Saved.");
-      await openNote(note.code);
+      renderCurrentNote(note);
+      showView("note");
     } else {
       const note = await api("/api/notes", {
         method: "POST",
         body: JSON.stringify({ title, content })
       });
+
+      if (!upsertNoteInState(note)) {
+        state.notesLoaded = false;
+      }
 
       state.currentNote = note;
       showCodeSaved(note.code);
@@ -835,11 +936,14 @@ async function deleteCurrentNote() {
   if (!confirmed) return;
 
   try {
+    const deletedCode = state.currentNote.code;
+
     await api(
       `/api/notes/${encodeURIComponent(state.currentNote.code)}`,
       { method: "DELETE" }
     );
 
+    removeNoteFromState(deletedCode);
     state.currentNote = null;
     showToast("Note deleted.");
     showView("home");
@@ -912,14 +1016,13 @@ function formatDateTime(value) {
   }).format(date);
 }
 
-async function loadSettingsStats() {
+async function loadSettingsStats(options = {}) {
   const totalNotes = $("#settingsTotalNotes");
 
-  if (totalNotes) totalNotes.textContent = "Loading...";
+  if (totalNotes && (!state.notesLoaded || options.force)) totalNotes.textContent = "Loading...";
 
   try {
-    const notes = await api("/api/notes?sort=newest");
-    state.notes = notes;
+    const notes = await loadNoteList("newest", options);
     if (totalNotes) totalNotes.textContent = notes.length.toLocaleString();
   } catch (error) {
     if (error.message !== "Unauthorized" && totalNotes) {
