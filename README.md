@@ -1,93 +1,278 @@
 # ThinkMark
 
-A minimal physical-to-digital notebook extension app.
+> A lightweight, fast, and privacy-conscious web notebook for capturing, organizing, and accessing notes.
 
-## Architecture
+ThinkMark is a full-stack web application built with a simple frontend, a serverless API, and a managed database. It focuses on keeping the experience fast and minimal while maintaining secure authentication and efficient data handling.
 
-- Frontend: Vanilla HTML/CSS/JS
-- Hosting/API: Cloudflare Pages + Pages Functions
-- Database: Supabase PostgreSQL
-- Cost target: ₹0/month on free tiers
+## ✨ Features
 
-## 1. Supabase
+* 🔐 Secure authentication with HttpOnly session cookies
+* 📝 Create, edit, and delete notes
+* 📚 Recent notes and all-notes views
+* 🔗 Open notes using unique codes
+* 🔄 Backlink support between notes
+* 📱 Progressive Web App (PWA) support
+* 🌐 Offline support through a service worker
+* ⚡ Static assets served through Cloudflare's global network
+* 🛡️ Security headers and Content Security Policy
+* 🚀 Client-side state reuse to reduce unnecessary API requests
 
-Create a Supabase project and run `supabase/schema.sql` in the SQL Editor.
+## 🛠️ Tech Stack
 
-Then get:
-- Project URL
-- Secret key from Settings → API Keys
+* **Frontend:** HTML, CSS, Vanilla JavaScript
+* **Hosting:** Cloudflare Pages
+* **Backend:** Cloudflare Pages Functions
+* **Database:** Supabase
+* **Authentication:** HttpOnly session cookies
+* **PWA:** Service Worker + Web App Manifest
+* **Version Control:** Git + GitHub
 
-Never put the Supabase secret key in frontend code.
+## 🏗️ Architecture
 
-## 2. Cloudflare
+```text
+                         ┌─────────────────┐
+                         │     Browser     │
+                         │                 │
+                         │ HTML / CSS / JS │
+                         │ Service Worker  │
+                         └────────┬────────┘
+                                  │
+                    ┌─────────────┴─────────────┐
+                    │                           │
+              Static assets                 /api/*
+                    │                           │
+                    ▼                           ▼
+          ┌─────────────────┐        ┌──────────────────┐
+          │ Cloudflare Pages│        │ Pages Functions  │
+          │      / CDN      │        │                  │
+          └─────────────────┘        │ Auth + Notes API │
+                                     └────────┬─────────┘
+                                              │
+                                              ▼
+                                     ┌─────────────────┐
+                                     │    Supabase     │
+                                     │    Database     │
+                                     └─────────────────┘
+```
 
-Create a GitHub repository and push this project.
+Static files are served directly by Cloudflare Pages, while only `/api/*` requests invoke server-side Functions.
 
-In Cloudflare:
-1. Workers & Pages → Create → Pages → Connect to Git
-2. Select the repository.
-3. Build command: leave empty
-4. Build output directory: `public`
-5. Deploy.
+## 📁 Project Structure
 
-The `functions/` directory is detected as Pages Functions.
+```text
+ThinkMark/
+├── public/
+│   ├── index.html
+│   ├── app.js
+│   ├── style.css
+│   ├── sw.js
+│   ├── manifest.webmanifest
+│   ├── _headers
+│   ├── _routes.json
+│   └── assets/
+│
+├── functions/
+│   ├── _middleware.js
+│   └── api/
+│       ├── _auth.js
+│       ├── auth/
+│       │   ├── login.js
+│       │   ├── logout.js
+│       │   └── session.js
+│       └── notes/
+│           ├── index.js
+│           └── [code].js
+│
+├── package.json
+├── .gitignore
+└── README.md
+```
 
-## 3. Environment variables
+## 🔌 API
 
-In Cloudflare Pages → Settings → Environment variables, add:
+### Authentication
 
-- `SUPABASE_URL` = your Supabase project URL
-- `SUPABASE_SECRET_KEY` = your Supabase secret key
-- `THINKMARK_PASSWORD` = a private password for your personal ThinkMark
+| Method   | Endpoint            | Description                |
+| -------- | ------------------- | -------------------------- |
+| `POST`   | `/api/auth/login`   | Authenticate a user        |
+| `POST`   | `/api/auth/logout`  | End the current session    |
+| `GET`    | `/api/auth/session` | Check authentication state |
+| `POST`   | `/api/auth/session` | Session operation          |
+| `DELETE` | `/api/auth/session` | Session operation          |
 
-Add them for Production (and Preview if you want).
+### Notes
 
-Do NOT commit these values to GitHub.
+| Method   | Endpoint           | Description              |
+| -------- | ------------------ | ------------------------ |
+| `GET`    | `/api/notes`       | Retrieve notes           |
+| `POST`   | `/api/notes`       | Create a note            |
+| `GET`    | `/api/notes/:code` | Retrieve a specific note |
+| `PUT`    | `/api/notes/:code` | Update a note            |
+| `DELETE` | `/api/notes/:code` | Delete a note            |
 
-## 4. First use
+## ⚡ Performance
 
-Open the deployed site.
-Enter your ThinkMark password.
-Tap New Note.
-Write your extension.
-Save.
-Copy the generated 4-character code into your physical notebook.
+ThinkMark is designed to avoid unnecessary network requests.
 
-Later, enter the code on the home page to retrieve it.
+Once notes are loaded, the frontend keeps them in local application state and reuses that data during normal navigation instead of repeatedly requesting the same list.
 
-## Existing data migration
+Mutations also update local state using the server response:
 
-This app now expects note codes to be exactly 4 lowercase alphanumeric characters (`a-z`, `0-9`).
+```text
+Create
+  ↓
+POST /api/notes
+  ↓
+Update local state
 
-If your database already contains 5-character codes, do not change the schema in place without a plan:
 
-- Existing 5-character rows will fail the new `varchar(4)` and regex check.
-- The app will reject 5-character codes after this change.
-- You must migrate those records explicitly, for example by assigning each legacy row a new unique 4-character code and updating the matching physical notebook references before enforcing the new schema.
+Edit
+  ↓
+PUT /api/notes/:code
+  ↓
+Update local state
 
-Do not truncate 5-character codes automatically, because truncation can create collisions and break existing references.
 
-## Local development
+Delete
+  ↓
+DELETE /api/notes/:code
+  ↓
+Update local state
+```
 
-Install Node.js and Wrangler:
+This reduces redundant API calls and Cloudflare Function invocations while keeping the server as the source of truth.
 
-    npm install
+## 🔒 Security
 
-Then create a `.dev.vars` file in the project root:
+Authentication is handled server-side using secure HttpOnly cookies.
 
-    SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-    SUPABASE_SECRET_KEY=YOUR_SECRET_KEY
-    THINKMARK_PASSWORD=YOUR_PASSWORD
+Session cookies use security-focused attributes including:
 
-Start:
+```text
+HttpOnly
+Secure
+SameSite=Strict
+Path=/
+```
 
-    npm run dev
+Database credentials remain on the server and are not exposed to the browser.
 
-This runs the Pages project locally.
+Static responses are protected using security headers including:
 
-## Important
+* Content Security Policy
+* Referrer Policy
+* X-Content-Type-Options
+* X-Frame-Options
+* Permissions Policy
 
-The Supabase secret key has full database access and must remain server-side. The browser only talks to `/api/*`.
+API responses retain their server-side security handling through Cloudflare Pages Functions.
 
-For long-term safety, periodically export your notes from the Settings menu.
-# ThinkMark
+## 📱 PWA & Offline Support
+
+ThinkMark includes:
+
+* Web App Manifest
+* Service Worker
+* Static asset caching
+* Offline application support
+
+The service worker intentionally keeps API requests separate from static asset caching so authenticated dynamic data is not incorrectly treated as static content.
+
+## 🚀 Getting Started
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/Arkadipta-Kundu/ThinkMark.git
+cd ThinkMark
+```
+
+### 2. Install dependencies
+
+```bash
+npm install
+```
+
+### 3. Configure environment variables
+
+Configure the required server-side environment variables for the Cloudflare Pages Functions and Supabase connection.
+
+Do **not** commit secrets or production credentials to Git.
+
+### 4. Start the development server
+
+```bash
+npm run dev
+```
+
+The project uses Cloudflare's local Pages development environment.
+
+## ☁️ Deployment
+
+ThinkMark uses separate development and production branches:
+
+```text
+main
+ │
+ │ development / testing
+ ▼
+Cloudflare Preview
+ │
+ │ stable changes
+ ▼
+production
+ │
+ ▼
+Live application
+```
+
+The `main` branch is used for development and testing.
+
+The `production` branch represents the stable version deployed to the live environment.
+
+Cloudflare Preview deployments can be used to validate changes before promoting them to production.
+
+## 🧪 Testing
+
+Before promoting a change to production, important application flows should be verified:
+
+* Login and logout
+* Session persistence after refresh
+* Navigation between Home, All Notes, and Settings
+* Creating a note
+* Editing a note
+* Deleting a note
+* Opening individual notes
+* Backlinks
+* Offline/PWA behavior
+* Static asset loading
+* API request behavior
+
+Particular attention should be paid to ensuring that normal navigation does not generate redundant `/api/notes` requests.
+
+## 📌 Project Status
+
+**Stable**
+
+The `production` branch represents the current stable version of ThinkMark.
+
+Development and experimental changes should be tested through the `main` branch and Cloudflare Preview deployments before being promoted to production.
+
+## 📄 License
+
+ThinkMark is licensed under the MIT License.
+
+See [LICENSE](LICENSE) for the full license text.
+
+## 👨‍💻 About
+
+ThinkMark is a personal software engineering project built to explore practical web application development, including:
+
+* Frontend state management
+* Serverless APIs
+* Authentication
+* Database-backed applications
+* Progressive Web Apps
+* Cloudflare Pages
+* Performance optimization
+* Secure web application architecture
