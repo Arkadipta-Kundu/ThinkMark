@@ -1,4 +1,5 @@
 const state = {
+  authState: "AUTH_LOADING",
   currentView: "home",
   currentNote: null,
   editingCode: null,
@@ -25,6 +26,11 @@ const THEMES = {
     themeColor: "#111210"
   }
 };
+const AUTH_STATES = {
+  LOADING: "AUTH_LOADING",
+  AUTHENTICATED: "AUTHENTICATED",
+  UNAUTHENTICATED: "UNAUTHENTICATED"
+};
 
 const $ = (selector) => document.querySelector(selector);
 const OFFLINE_MESSAGE = "You're offline. Reconnect to fetch the latest notes.";
@@ -40,6 +46,46 @@ const deleteCancelBtn = $("#deleteCancelBtn");
 const deleteConfirmBtn = $("#deleteConfirmBtn");
 let pendingDeleteConfirmation = null;
 let noteListRequest = null;
+
+function setAuthState(authState) {
+  state.authState = authState;
+  document.body.dataset.authState = authState
+    .replace("AUTH_", "")
+    .toLowerCase();
+}
+
+function resetPrivateState() {
+  state.currentNote = null;
+  state.editingCode = null;
+  state.editorDoneMode = false;
+  state.editorReturnView = "home";
+  state.notes = [];
+  state.notesLoaded = false;
+  noteListRequest = null;
+
+  $("#recentList").innerHTML = `<div class="empty-state">No notes yet.</div>`;
+  $("#allNotesList").innerHTML = `<div class="empty-state">No notes yet.</div>`;
+  $("#settingsTotalNotes").textContent = "0";
+  $("#noteContentView").innerHTML = "";
+  $("#noteTitleView").textContent = "";
+  $("#noteTitleView").hidden = true;
+  $("#noteDate").textContent = "";
+  $("#backlinks").hidden = true;
+  $("#backlinks").innerHTML = "";
+}
+
+function showAuthenticatedApp() {
+  hideLogin();
+  setAuthState(AUTH_STATES.AUTHENTICATED);
+}
+
+function showUnauthenticatedApp(message = "") {
+  resetPrivateState();
+  setAuthState(AUTH_STATES.UNAUTHENTICATED);
+  showView("home");
+  showLogin();
+  loginError.textContent = message;
+}
 
 function showLogin() {
   passwordModal.style.display = "grid";
@@ -228,7 +274,7 @@ async function api(path, options = {}) {
   });
 
   if (response.status === 401) {
-    showLogin();
+    showUnauthenticatedApp();
     throw new Error("Unauthorized");
   }
 
@@ -296,6 +342,8 @@ function showView(viewName) {
   });
 
   window.scrollTo({ top: 0, behavior: "smooth" });
+
+  if (state.authState !== AUTH_STATES.AUTHENTICATED) return;
 
   if (viewName === "home") loadRecent();
   if (viewName === "notes") loadAllNotes();
@@ -1069,7 +1117,7 @@ function isTypingTarget(target) {
 }
 
 function canUseAppShortcuts(event) {
-  return !isTypingTarget(event.target) && passwordModal.style.display === "none" && !isDeleteModalOpen();
+  return state.authState === AUTH_STATES.AUTHENTICATED && !isTypingTarget(event.target) && passwordModal.style.display === "none" && !isDeleteModalOpen();
 }
 
 function handleKeyboardShortcuts(event) {
@@ -1113,7 +1161,7 @@ passwordForm.addEventListener("submit", async (event) => {
       throw new Error(body.error || "Wrong password or server unavailable.");
     }
 
-    hideLogin();
+    showAuthenticatedApp();
     passwordInput.value = "";
     await loadRecent();
   } catch (error) {
@@ -1193,14 +1241,15 @@ $("#logoutBtn").addEventListener("click", async () => {
     credentials: "same-origin"
   }).catch(() => { });
 
-  location.reload();
+  showUnauthenticatedApp();
 });
 
 async function initializeAuth() {
+  setAuthState(AUTH_STATES.LOADING);
+
   try {
     if (isOffline()) {
-      showLogin();
-      loginError.textContent = OFFLINE_MESSAGE;
+      showUnauthenticatedApp(OFFLINE_MESSAGE);
       return;
     }
 
@@ -1211,13 +1260,16 @@ async function initializeAuth() {
     const body = await response.json().catch(() => ({}));
 
     if (response.ok && body.authenticated) {
-      hideLogin();
+      showAuthenticatedApp();
       await loadRecent();
       return;
     }
-  } catch { }
+  } catch {
+    showUnauthenticatedApp("Unable to check your session. Try again.");
+    return;
+  }
 
-  showLogin();
+  showUnauthenticatedApp();
 }
 
 initializeSettingsControls();

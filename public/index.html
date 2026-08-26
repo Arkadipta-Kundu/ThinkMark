@@ -47,8 +47,22 @@
   <link rel="stylesheet" href="style.css">
 </head>
 
-<body>
+<body data-auth-state="loading">
   <div id="toast" class="toast"></div>
+
+  <div id="appLoader" class="app-loader" role="status" aria-live="polite" aria-label="Loading ThinkMark">
+    <div class="loader-brand" aria-hidden="true">
+      <div class="loader-mark">
+        <img class="brand-mark-light" src="/thinkmark_logo.png" alt="">
+        <img class="brand-mark-dark" src="/thinkmark_logo_for_dark_theme.png" alt="">
+        <span class="loader-line loader-line-1"></span>
+        <span class="loader-line loader-line-2"></span>
+        <span class="loader-line loader-line-3"></span>
+      </div>
+      <span>ThinkMark</span>
+    </div>
+    <span class="sr-only">Loading ThinkMark</span>
+  </div>
 
   <main class="app-shell">
 
