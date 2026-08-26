@@ -22,6 +22,7 @@ const THEMES = {
 };
 
 const $ = (selector) => document.querySelector(selector);
+const OFFLINE_MESSAGE = "You're offline. Reconnect to fetch the latest notes.";
 
 const passwordModal = $("#passwordModal");
 const passwordForm = $("#passwordForm");
@@ -80,9 +81,22 @@ function showToast(message) {
   }, 2200);
 }
 
+function isOffline() {
+  return typeof navigator !== "undefined" && navigator.onLine === false;
+}
+
+function showOfflineMessage() {
+  showToast(OFFLINE_MESSAGE);
+}
+
 async function api(path, options = {}) {
+  if (isOffline()) {
+    throw new Error(OFFLINE_MESSAGE);
+  }
+
   const response = await fetch(path, {
     ...options,
+    cache: "no-store",
     credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
@@ -102,6 +116,46 @@ async function api(path, options = {}) {
   }
 
   return body;
+}
+
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js", { scope: "/" })
+      .then((registration) => {
+        registration.update().catch(() => { });
+
+        if (registration.waiting) {
+          registration.waiting.postMessage({ type: "SKIP_WAITING" });
+        }
+
+        registration.addEventListener("updatefound", () => {
+          const worker = registration.installing;
+          if (!worker) return;
+
+          worker.addEventListener("statechange", () => {
+            if (worker.state === "installed" && navigator.serviceWorker.controller) {
+              worker.postMessage({ type: "SKIP_WAITING" });
+            }
+          });
+        });
+      })
+      .catch(() => { });
+  });
+}
+
+function registerConnectionStatus() {
+  window.addEventListener("offline", showOfflineMessage);
+  window.addEventListener("online", () => {
+    showToast("Back online. Fetching latest notes.");
+
+    if (state.currentView === "home") loadRecent();
+    if (state.currentView === "notes") loadAllNotes();
+    if (state.currentView === "note" && state.currentNote?.code) {
+      openNote(state.currentNote.code);
+    }
+  });
 }
 
 function showView(viewName) {
@@ -477,6 +531,11 @@ function openEditorForNote(note) {
 }
 
 async function saveNote() {
+  if (isOffline()) {
+    showOfflineMessage();
+    return;
+  }
+
   const title = normalizeTitle($("#noteTitle").value);
   const content = $("#noteContent").value.trim();
 
@@ -538,6 +597,11 @@ function showCodeSaved(code) {
 async function deleteCurrentNote() {
   if (!state.currentNote) return;
 
+  if (isOffline()) {
+    showOfflineMessage();
+    return;
+  }
+
   const confirmed = confirm(
     `Delete note ${state.currentNote.code}? This cannot be undone.`
   );
@@ -561,6 +625,11 @@ async function deleteCurrentNote() {
 }
 
 async function exportNotes() {
+  if (isOffline()) {
+    showOfflineMessage();
+    return;
+  }
+
   try {
     const notes = await api("/api/notes?sort=oldest");
 
@@ -614,6 +683,7 @@ passwordForm.addEventListener("submit", async (event) => {
   try {
     const response = await fetch("/api/auth/login", {
       method: "POST",
+      cache: "no-store",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ password })
@@ -673,6 +743,7 @@ $("#noteContent").addEventListener("input", updateCharCount);
 $("#logoutBtn").addEventListener("click", async () => {
   await fetch("/api/auth/logout", {
     method: "POST",
+    cache: "no-store",
     credentials: "same-origin"
   }).catch(() => { });
 
@@ -681,7 +752,14 @@ $("#logoutBtn").addEventListener("click", async () => {
 
 async function initializeAuth() {
   try {
+    if (isOffline()) {
+      showLogin();
+      loginError.textContent = OFFLINE_MESSAGE;
+      return;
+    }
+
     const response = await fetch("/api/auth/session", {
+      cache: "no-store",
       credentials: "same-origin"
     });
     const body = await response.json().catch(() => ({}));
@@ -697,4 +775,6 @@ async function initializeAuth() {
 }
 
 applyTheme(getStoredTheme());
+registerServiceWorker();
+registerConnectionStatus();
 initializeAuth();

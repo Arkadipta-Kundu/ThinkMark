@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f7f7f5">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#111210">
+  <title>ThinkMark is offline</title>
+  <link rel="icon" type="image/png" href="/tab_logo.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="app-shell offline-shell">
+    <section class="offline-panel" aria-labelledby="offlineTitle">
+      <div class="brand brand-static">
+        <img class="brand-mark brand-mark-light" src="/thinkmark_logo.png" alt="ThinkMark logo">
+        <img class="brand-mark brand-mark-dark" src="/thinkmark_logo_for_dark_theme.png" alt="ThinkMark logo">
+        <span>ThinkMark</span>
+      </div>
+      <span class="eyebrow">OFFLINE</span>
+      <h1 id="offlineTitle">Notes are unavailable right now.</h1>
+      <p>
+        ThinkMark keeps your notes on the server and does not cache note data on this device.
+        Reconnect to fetch the latest notes and continue editing.
+      </p>
+      <button class="primary-btn" type="button" onclick="location.reload()">Try again</button>
+    </section>
+  </main>
+</body>
+</html>
