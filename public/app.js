@@ -13,10 +13,6 @@ const THEME_STORAGE_KEY = "thinkmark-theme";
 const FONT_SIZE_STORAGE_KEY = "thinkmark-font-size";
 const DEFAULT_SORT_STORAGE_KEY = "thinkmark-default-sort";
 const CONFIRM_DELETION_STORAGE_KEY = "thinkmark-confirm-deletion";
-const BACKUP_TIME_STORAGE_KEYS = [
-  "thinkmark-last-successful-backup",
-  "thinkmark-last-backup-at"
-];
 const THEMES = {
   light: {
     label: "Switch to dark mode",
@@ -535,6 +531,16 @@ function sanitizeRenderedMarkdown(html) {
   return template.innerHTML;
 }
 
+function renderNoteTimestamps(note) {
+  const createdAt = formatDateTime(note.created_at);
+  const updatedAt = formatDateTime(note.updated_at);
+
+  return `
+    <span>Created: ${escapeHtml(createdAt)}</span>
+    <span>Updated: ${escapeHtml(updatedAt)}</span>
+  `;
+}
+
 async function loadRecent() {
   try {
     const notes = await api("/api/notes?sort=newest");
@@ -582,8 +588,7 @@ async function openNote(code) {
     $("#noteCode").textContent = note.code;
     $("#noteTitleView").textContent = note.title || "";
     $("#noteTitleView").hidden = !note.title;
-    $("#noteDate").textContent =
-      `Created ${formatDate(note.created_at)} · Updated ${formatDate(note.updated_at)}`;
+    $("#noteDate").innerHTML = renderNoteTimestamps(note);
 
     $("#noteContentView").innerHTML = renderMarkdown(note.content);
 
@@ -791,21 +796,8 @@ function formatDateTime(value) {
   }).format(date);
 }
 
-function getExistingBackupTime() {
-  try {
-    for (const key of BACKUP_TIME_STORAGE_KEYS) {
-      const value = localStorage.getItem(key);
-      if (value) return value;
-    }
-  } catch { }
-
-  return "";
-}
-
 async function loadSettingsStats() {
   const totalNotes = $("#settingsTotalNotes");
-  const lastBackupRow = $("#lastBackupRow");
-  const lastBackup = $("#settingsLastBackup");
 
   if (totalNotes) totalNotes.textContent = "Loading...";
 
@@ -817,14 +809,6 @@ async function loadSettingsStats() {
     if (error.message !== "Unauthorized" && totalNotes) {
       totalNotes.textContent = error.message;
     }
-  }
-
-  const backupTime = formatDateTime(getExistingBackupTime());
-  if (backupTime && lastBackupRow && lastBackup) {
-    lastBackup.textContent = backupTime;
-    lastBackupRow.hidden = false;
-  } else if (lastBackupRow) {
-    lastBackupRow.hidden = true;
   }
 }
 

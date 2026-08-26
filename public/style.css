@@ -665,8 +665,17 @@ textarea::-webkit-scrollbar {
 }
 
 .note-date {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 14px;
   color: var(--muted);
   font-size: 12px;
+  line-height: 1.5;
+}
+
+.note-date span {
+  white-space: nowrap;
 }
 
 .note-title {
