@@ -13,6 +13,29 @@
   <meta name="application-name" content="ThinkMark">
   <meta name="msapplication-TileColor" content="#f7f7f5">
   <title>ThinkMark — Continue the thought.</title>
+  <script>
+    (() => {
+      try {
+        const theme = localStorage.getItem("thinkmark-theme");
+        const themePreference =
+          theme === "dark" || theme === "light" || theme === "system" ? theme : "light";
+        const systemDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches;
+        const activeTheme = themePreference === "system"
+          ? systemDark ? "dark" : "light"
+          : themePreference;
+
+        document.documentElement.dataset.theme = activeTheme;
+        document.documentElement.dataset.themePreference = themePreference;
+        document.documentElement.style.backgroundColor =
+          activeTheme === "dark" ? "#111210" : "#f7f7f5";
+        document.documentElement.style.colorScheme = activeTheme;
+      } catch {
+        document.documentElement.dataset.themePreference = "light";
+        document.documentElement.style.backgroundColor = "#f7f7f5";
+        document.documentElement.style.colorScheme = "light";
+      }
+    })();
+  </script>
   <style>
     html,
     body {
@@ -151,12 +174,6 @@
         const activeTheme = themePreference === "system"
           ? systemDark ? "dark" : "light"
           : themePreference;
-
-        document.documentElement.dataset.theme = activeTheme;
-        document.documentElement.dataset.themePreference = themePreference;
-        document.documentElement.style.backgroundColor =
-          activeTheme === "dark" ? "#111210" : "#f7f7f5";
-        document.documentElement.style.colorScheme = activeTheme;
         document
           .querySelector("#themeColorMeta")
           ?.setAttribute("content", activeTheme === "dark" ? "#111210" : "#f7f7f5");
