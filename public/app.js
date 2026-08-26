@@ -66,7 +66,7 @@ function toggleTheme() {
 
   try {
     localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
-  } catch {}
+  } catch { }
 }
 
 function showToast(message) {
@@ -184,9 +184,38 @@ function isSafeUrl(value) {
   }
 }
 
+function normalizeAutoLinkUrl(value) {
+  const withProtocol = value.startsWith("www.") ? `https://${value}` : value;
+  const normalized = withProtocol.replaceAll("&amp;", "&");
+  return isSafeUrl(normalized) ? normalized : null;
+}
+
+function splitTrailingPunctuation(value) {
+  let url = value;
+  let trailing = "";
+
+  while (/[.,!?;:\]]$/.test(url)) {
+    trailing = url.slice(-1) + trailing;
+    url = url.slice(0, -1);
+  }
+
+  while (url.endsWith(")")) {
+    const opens = (url.match(/\(/g) || []).length;
+    const closes = (url.match(/\)/g) || []).length;
+    if (closes <= opens) break;
+
+    trailing = ")" + trailing;
+    url = url.slice(0, -1);
+  }
+
+  return { url, trailing };
+}
+
 function renderInlineMarkdown(text) {
   const codeParts = [];
+  const markdownLinkParts = [];
   const placeholder = (index) => `\u0000CODE${index}\u0000`;
+  const markdownLinkPlaceholder = (index) => `\u0000MDLINK${index}\u0000`;
 
   let html = text.replace(/`([^`\n]+)`/g, (_, code) => {
     const index = codeParts.push(`<code>${escapeHtml(code)}</code>`) - 1;
@@ -200,8 +229,25 @@ function renderInlineMarkdown(text) {
 
       return `<a href="${escapeAttribute(decodedHref)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
     })
+    .replace(/<a\b[^>]*>.*?<\/a>/g, (link) => {
+      const index = markdownLinkParts.push(link) - 1;
+      return markdownLinkPlaceholder(index);
+    })
+    .replace(/(^|[\s(])((?:https?:\/\/|www\.)[^\s<]+)/g, (match, lead, maybeUrl) => {
+      const { url, trailing } = splitTrailingPunctuation(maybeUrl);
+      const normalizedUrl = normalizeAutoLinkUrl(url);
+
+      if (!normalizedUrl) return match;
+
+      const anchor = `<a href="${escapeAttribute(normalizedUrl)}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+      return `${lead}${anchor}${trailing}`;
+    })
     .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
     .replace(/(^|[^\*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+
+  markdownLinkParts.forEach((link, index) => {
+    html = html.replaceAll(markdownLinkPlaceholder(index), link);
+  });
 
   codeParts.forEach((code, index) => {
     html = html.replaceAll(escapeHtml(placeholder(index)), code);
@@ -320,6 +366,11 @@ function sanitizeRenderedMarkdown(html) {
 
     if (element.tagName === "A" && !isSafeUrl(element.getAttribute("href"))) {
       element.removeAttribute("href");
+    }
+
+    if (element.tagName === "A" && element.getAttribute("href")) {
+      element.setAttribute("target", "_blank");
+      element.setAttribute("rel", "noopener noreferrer");
     }
   });
 
@@ -480,7 +531,7 @@ function showCodeSaved(code) {
   $("#saveBtn").style.display = "none";
   $("#cancelBtn").textContent = "Done";
 
-  navigator.clipboard?.writeText(code).catch(() => {});
+  navigator.clipboard?.writeText(code).catch(() => { });
   showToast(`Your code is ${code}`);
 }
 
@@ -623,7 +674,7 @@ $("#logoutBtn").addEventListener("click", async () => {
   await fetch("/api/auth/logout", {
     method: "POST",
     credentials: "same-origin"
-  }).catch(() => {});
+  }).catch(() => { });
 
   location.reload();
 });
@@ -640,7 +691,7 @@ async function initializeAuth() {
       await loadRecent();
       return;
     }
-  } catch {}
+  } catch { }
 
   showLogin();
 }
