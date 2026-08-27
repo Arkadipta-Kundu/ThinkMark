@@ -13,6 +13,7 @@ const NOTE_CODE_LENGTH = 4;
 const NOTE_CODE_PATTERN = new RegExp(`^[a-z0-9]{${NOTE_CODE_LENGTH}}$`);
 const THEME_STORAGE_KEY = "thinkmark-theme";
 const FONT_SIZE_STORAGE_KEY = "thinkmark-font-size";
+const NOTE_FONT_SIZE_STORAGE_KEY = "thinkmark-note-font-size";
 const DEFAULT_SORT_STORAGE_KEY = "thinkmark-default-sort";
 const CONFIRM_DELETION_STORAGE_KEY = "thinkmark-confirm-deletion";
 const NOTE_REFERENCE_PATTERN = /\[\[([a-z0-9]{4})\]\]/gi;
@@ -180,6 +181,20 @@ function getStoredFontSize() {
   }
 }
 
+function getActiveNoteFontSize(fontSize) {
+  return fontSize === "small" || fontSize === "large" || fontSize === "extra-large"
+    ? fontSize
+    : "medium";
+}
+
+function getStoredNoteFontSize() {
+  try {
+    return getActiveNoteFontSize(localStorage.getItem(NOTE_FONT_SIZE_STORAGE_KEY));
+  } catch {
+    return "medium";
+  }
+}
+
 function applyFontSize(fontSize) {
   const activeFontSize = fontSize === "small" || fontSize === "large" ? fontSize : "medium";
   document.documentElement.dataset.fontSize = activeFontSize;
@@ -190,11 +205,30 @@ function applyFontSize(fontSize) {
     });
 }
 
+function applyNoteFontSize(fontSize) {
+  const activeFontSize = getActiveNoteFontSize(fontSize);
+  document.documentElement.dataset.noteFontSize = activeFontSize;
+  document
+    .querySelectorAll("input[name='noteFontSizePreference']")
+    .forEach(input => {
+      input.checked = input.value === activeFontSize;
+    });
+}
+
 function saveFontSize(fontSize) {
   applyFontSize(fontSize);
 
   try {
     localStorage.setItem(FONT_SIZE_STORAGE_KEY, fontSize);
+  } catch { }
+}
+
+function saveNoteFontSize(fontSize) {
+  const activeFontSize = getActiveNoteFontSize(fontSize);
+  applyNoteFontSize(activeFontSize);
+
+  try {
+    localStorage.setItem(NOTE_FONT_SIZE_STORAGE_KEY, activeFontSize);
   } catch { }
 }
 
@@ -1082,6 +1116,7 @@ async function loadSettingsStats(options = {}) {
 function initializeSettingsControls() {
   applyTheme(getStoredTheme());
   applyFontSize(getStoredFontSize());
+  applyNoteFontSize(getStoredNoteFontSize());
 
   const defaultSort = getStoredDefaultSort();
   $("#sortSelect").value = defaultSort;
@@ -1098,6 +1133,12 @@ function initializeSettingsControls() {
     .querySelectorAll("input[name='fontSizePreference']")
     .forEach(input => {
       input.addEventListener("change", () => saveFontSize(input.value));
+    });
+
+  document
+    .querySelectorAll("input[name='noteFontSizePreference']")
+    .forEach(input => {
+      input.addEventListener("change", () => saveNoteFontSize(input.value));
     });
 
   document

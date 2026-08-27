@@ -35,9 +35,19 @@
           fontSize === "small" || fontSize === "medium" || fontSize === "large"
             ? fontSize
             : "medium";
+
+        const noteFontSize = localStorage.getItem("thinkmark-note-font-size");
+        document.documentElement.dataset.noteFontSize =
+          noteFontSize === "small" ||
+            noteFontSize === "medium" ||
+            noteFontSize === "large" ||
+            noteFontSize === "extra-large"
+            ? noteFontSize
+            : "medium";
       } catch {
         document.documentElement.dataset.themePreference = "light";
         document.documentElement.dataset.fontSize = "medium";
+        document.documentElement.dataset.noteFontSize = "medium";
       }
     })();
   </script>
@@ -274,6 +284,28 @@
               <label>
                 <input type="radio" name="fontSizePreference" value="large">
                 <span>Large</span>
+              </label>
+            </fieldset>
+          </div>
+
+          <div class="setting-row">
+            <h3>Note text size</h3>
+            <fieldset class="segmented-control" aria-label="Note text size">
+              <label>
+                <input type="radio" name="noteFontSizePreference" value="small">
+                <span>Small</span>
+              </label>
+              <label>
+                <input type="radio" name="noteFontSizePreference" value="medium">
+                <span>Medium</span>
+              </label>
+              <label>
+                <input type="radio" name="noteFontSizePreference" value="large">
+                <span>Large</span>
+              </label>
+              <label>
+                <input type="radio" name="noteFontSizePreference" value="extra-large">
+                <span>Extra Large</span>
               </label>
             </fieldset>
           </div>

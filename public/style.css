@@ -25,7 +25,13 @@
   --radius: 18px;
   --max: 960px;
   --body-font-size: 16px;
-  --note-font-size: 19px;
+  --note-font-size: 16px;
+  --note-line-height: 1.64;
+  --note-heading-line-height: 1.22;
+  --note-h1-size: calc(var(--note-font-size) * 1.62);
+  --note-h2-size: calc(var(--note-font-size) * 1.38);
+  --note-h3-size: calc(var(--note-font-size) * 1.18);
+  --note-h4-size: calc(var(--note-font-size) * 1.08);
   color-scheme: light;
 }
 
@@ -58,12 +64,22 @@
 
 [data-font-size="small"] {
   --body-font-size: 15px;
-  --note-font-size: 17px;
 }
 
 [data-font-size="large"] {
   --body-font-size: 17px;
-  --note-font-size: 21px;
+}
+
+[data-note-font-size="small"] {
+  --note-font-size: 14px;
+}
+
+[data-note-font-size="large"] {
+  --note-font-size: 18px;
+}
+
+[data-note-font-size="extra-large"] {
+  --note-font-size: 20px;
 }
 
 * {
@@ -732,7 +748,7 @@ textarea {
   background: transparent;
   font-family: Georgia, "Times New Roman", serif;
   font-size: var(--note-font-size);
-  line-height: 1.75;
+  line-height: var(--note-line-height);
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -819,16 +835,20 @@ textarea::-webkit-scrollbar {
   overflow-wrap: anywhere;
   font-family: Georgia, "Times New Roman", serif;
   font-size: var(--note-font-size);
-  line-height: 1.8;
+  line-height: var(--note-line-height);
   min-height: 260px;
 }
 
 .note-content > * {
-  margin: 0 0 18px;
+  margin: 0 0 .9em;
 }
 
 .note-content > *:last-child {
   margin-bottom: 0;
+}
+
+.note-content > *:first-child {
+  margin-top: 0;
 }
 
 .note-content h1,
@@ -839,8 +859,9 @@ textarea::-webkit-scrollbar {
 .note-content h6 {
   font-family: Georgia, "Times New Roman", serif;
   font-weight: 500;
-  line-height: 1.25;
+  line-height: var(--note-heading-line-height);
   color: var(--text);
+  margin: 1.3em 0 .55em;
 }
 
 .note-content strong {
@@ -852,26 +873,26 @@ textarea::-webkit-scrollbar {
 }
 
 .note-content h1 {
-  font-size: 32px;
+  font-size: var(--note-h1-size);
 }
 
 .note-content h2 {
-  font-size: 28px;
+  font-size: var(--note-h2-size);
 }
 
 .note-content h3 {
-  font-size: 24px;
+  font-size: var(--note-h3-size);
 }
 
 .note-content h4,
 .note-content h5,
 .note-content h6 {
-  font-size: 21px;
+  font-size: var(--note-h4-size);
 }
 
 .note-content ul,
 .note-content ol {
-  padding-left: 26px;
+  padding-left: 1.45em;
 }
 
 .note-content code {
@@ -879,8 +900,8 @@ textarea::-webkit-scrollbar {
   border: 1px solid var(--code-border);
   border-radius: 5px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: .88em;
-  padding: .1em .28em;
+  font-size: .86em;
+  padding: .08em .28em;
 }
 
 .note-content pre {
@@ -888,7 +909,7 @@ textarea::-webkit-scrollbar {
   border: 1px solid var(--code-border);
   border-radius: 8px;
   overflow-x: auto;
-  padding: 15px;
+  padding: .95em;
   scrollbar-color: var(--border) var(--surface-soft);
 }
 
@@ -897,7 +918,7 @@ textarea::-webkit-scrollbar {
   border: 0;
   border-radius: 0;
   display: block;
-  line-height: 1.6;
+  line-height: 1.55;
   padding: 0;
   white-space: pre;
 }
@@ -921,7 +942,7 @@ textarea::-webkit-scrollbar {
 .note-content blockquote {
   border-left: 3px solid var(--hover-border);
   color: var(--muted);
-  padding-left: 18px;
+  padding-left: 1em;
 }
 
 .note-content blockquote p {
