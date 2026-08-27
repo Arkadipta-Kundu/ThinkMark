@@ -238,7 +238,7 @@ production
  │
  ▼
 Live application
-
+```
 ## 🧪 Testing
 
 Before promoting a change to production, important application flows should be verified:
