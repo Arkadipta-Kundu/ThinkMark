@@ -209,7 +209,21 @@ The project uses Cloudflare's local Pages development environment.
 
 ## ☁️ Deployment
 
-ThinkMark uses separate development and production branches:
+ThinkMark is currently **not a centrally hosted public service**. The repository contains the application source code and deployment configuration needed to run your own instance.
+
+ThinkMark can be **self-deployed** using your own infrastructure and credentials.
+
+For example, the reference deployment uses:
+
+- **Cloudflare Pages** — static frontend and serverless Functions
+- **Supabase** — database
+- **GitHub** — source control and deployment workflow
+
+Each deployment is an independent ThinkMark instance. You are responsible for configuring and managing your own hosting, database, environment variables, and credentials.
+
+### Development → Production
+
+The repository uses separate development and production branches:
 
 ```text
 main
@@ -224,13 +238,6 @@ production
  │
  ▼
 Live application
-```
-
-The `main` branch is used for development and testing.
-
-The `production` branch represents the stable version deployed to the live environment.
-
-Cloudflare Preview deployments can be used to validate changes before promoting them to production.
 
 ## 🧪 Testing
 
