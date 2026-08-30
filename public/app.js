@@ -704,7 +704,11 @@ function extractNoteReferences(content) {
 }
 
 function noteLabel(note) {
-  return note.title || note.code;
+  return normalizeTitle(note.title) || note.code;
+}
+
+function noteCardDisplayText(note) {
+  return preview(normalizeTitle(note.title) || note.content);
 }
 
 function sortNotes(notes, sort) {
@@ -813,7 +817,7 @@ function renderNoteRows(notes, container) {
   container.innerHTML = notes.map(note => `
     <button class="note-row" data-code="${escapeHtml(note.code)}">
       <span class="row-code">${escapeHtml(note.code)}</span>
-      <span class="row-preview">${escapeHtml(preview(note.content))}</span>
+      <span class="row-preview">${escapeHtml(noteCardDisplayText(note))}</span>
       <span class="row-date">${formatDate(note.created_at)}</span>
     </button>
   `).join("");
