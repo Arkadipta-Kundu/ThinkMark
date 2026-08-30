@@ -187,13 +187,23 @@
 
         <div class="editor-body">
           <div id="autosaveRecovery" class="autosave-recovery" hidden>
-            <div>
-              <strong>Unsaved note found</strong>
-              <span id="autosaveRecoveryMeta">Continue writing or discard it.</span>
+            <div class="autosave-recovery-copy">
+              <div id="autosaveRecoveryPrompt">
+                <strong>Unsaved note found</strong>
+                <span id="autosaveRecoveryMeta">Continue writing or discard it.</span>
+              </div>
+              <div id="autosaveDiscardPrompt" hidden>
+                <strong>Discard local draft?</strong>
+                <span>This will permanently remove the locally saved writing.</span>
+              </div>
             </div>
-            <div class="autosave-recovery-actions">
+            <div id="autosaveRecoveryActions" class="autosave-recovery-actions">
               <button class="secondary-btn" id="autosaveContinueBtn" type="button">Continue writing</button>
               <button class="secondary-btn" id="autosaveDiscardBtn" type="button">Discard</button>
+            </div>
+            <div id="autosaveDiscardActions" class="autosave-recovery-actions" hidden>
+              <button class="secondary-btn" id="autosaveKeepBtn" type="button">Keep writing</button>
+              <button class="danger-btn" id="autosaveConfirmDiscardBtn" type="button">Discard</button>
             </div>
           </div>
 

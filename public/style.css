@@ -727,6 +727,10 @@ select {
   gap: 8px;
 }
 
+.autosave-recovery-actions[hidden] {
+  display: none;
+}
+
 #autosaveContinueBtn {
   background: var(--autosave-accent);
   border-color: var(--autosave-accent);

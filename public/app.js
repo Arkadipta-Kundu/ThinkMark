@@ -311,6 +311,26 @@ function setAutosaveStatus(message) {
 function hideAutosaveRecovery() {
   const recovery = $("#autosaveRecovery");
   if (recovery) recovery.hidden = true;
+  showAutosaveRecoveryInitialState();
+}
+
+function showAutosaveRecoveryInitialState(options = {}) {
+  $("#autosaveRecoveryPrompt").hidden = false;
+  $("#autosaveRecoveryActions").hidden = false;
+  $("#autosaveDiscardPrompt").hidden = true;
+  $("#autosaveDiscardActions").hidden = true;
+
+  if (options.focusDiscard) {
+    $("#autosaveDiscardBtn").focus();
+  }
+}
+
+function showAutosaveDiscardConfirmation() {
+  $("#autosaveRecoveryPrompt").hidden = true;
+  $("#autosaveRecoveryActions").hidden = true;
+  $("#autosaveDiscardPrompt").hidden = false;
+  $("#autosaveDiscardActions").hidden = false;
+  $("#autosaveKeepBtn").focus();
 }
 
 function getEditorAutosaveKey(code = state.editingCode) {
@@ -439,6 +459,7 @@ function showAutosaveRecovery(draft, options = {}) {
 
   recovery.dataset.key = options.key || getEditorAutosaveKey(draft.code);
   meta.textContent = getAutosaveRecoveryMessage(draft, options.note);
+  showAutosaveRecoveryInitialState();
   recovery.hidden = false;
 }
 
@@ -1535,7 +1556,11 @@ $("#noteContent").addEventListener("input", () => {
   scheduleAutosave();
 });
 $("#autosaveContinueBtn")?.addEventListener("click", restoreAutosaveDraft);
-$("#autosaveDiscardBtn")?.addEventListener("click", discardAutosaveDraft);
+$("#autosaveDiscardBtn")?.addEventListener("click", showAutosaveDiscardConfirmation);
+$("#autosaveKeepBtn")?.addEventListener("click", () => {
+  showAutosaveRecoveryInitialState({ focusDiscard: true });
+});
+$("#autosaveConfirmDiscardBtn")?.addEventListener("click", discardAutosaveDraft);
 
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") {
