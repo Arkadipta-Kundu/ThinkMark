@@ -684,15 +684,24 @@ select {
 }
 
 .autosave-recovery {
+  --autosave-accent: #6f5734;
+  --autosave-accent-soft: #fbf6ed;
+  --autosave-accent-border: #e5d0a8;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 18px;
   padding: 13px 14px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--autosave-accent-border);
   border-radius: 12px;
-  background: var(--surface-soft);
+  background: var(--autosave-accent-soft);
+}
+
+[data-theme="dark"] .autosave-recovery {
+  --autosave-accent: #d8c092;
+  --autosave-accent-soft: #211d16;
+  --autosave-accent-border: #4a3e2b;
 }
 
 .autosave-recovery[hidden] {
@@ -701,6 +710,7 @@ select {
 
 .autosave-recovery strong {
   display: block;
+  color: var(--text);
   font-size: 13px;
 }
 
@@ -715,6 +725,12 @@ select {
   display: flex;
   flex: 0 0 auto;
   gap: 8px;
+}
+
+#autosaveContinueBtn {
+  background: var(--autosave-accent);
+  border-color: var(--autosave-accent);
+  color: var(--text-on-accent);
 }
 
 .editor-field {
