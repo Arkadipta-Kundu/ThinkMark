@@ -52,6 +52,7 @@ const deleteModalMessage = $("#deleteModalMessage");
 const deleteCancelBtn = $("#deleteCancelBtn");
 const deleteConfirmBtn = $("#deleteConfirmBtn");
 let pendingDeleteConfirmation = null;
+let pendingDeleteCancelHandler = null;
 let noteListRequest = null;
 let autosaveTimer = null;
 let autosaveStatusTimer = null;
@@ -116,12 +117,14 @@ function closeDeleteModal(confirmed) {
   deleteModal.hidden = true;
   const resolve = pendingDeleteConfirmation;
   pendingDeleteConfirmation = null;
+  pendingDeleteCancelHandler = null;
   resolve(confirmed);
 }
 
 function configureDeleteModal(options = {}) {
   if (deleteModalTitle) deleteModalTitle.textContent = options.title || "Delete note?";
   if (deleteModalMessage) deleteModalMessage.textContent = options.message || "This action cannot be undone.";
+  if (deleteCancelBtn) deleteCancelBtn.textContent = options.cancelLabel || "Cancel";
   if (deleteConfirmBtn) deleteConfirmBtn.textContent = options.confirmLabel || "Delete";
 }
 
@@ -134,6 +137,7 @@ function confirmWithDeleteModal(options = {}) {
 
   return new Promise(resolve => {
     pendingDeleteConfirmation = resolve;
+    pendingDeleteCancelHandler = typeof options.onCancel === "function" ? options.onCancel : null;
     deleteModal.hidden = false;
     deleteConfirmBtn.focus();
   });
@@ -147,11 +151,13 @@ function confirmNoteDeletion() {
   });
 }
 
-function confirmRecoveryDraftDiscard() {
+function confirmRecoveryDraftDiscard(onCancel) {
   return confirmWithDeleteModal({
     title: "Discard unsaved note?",
     message: "This locally saved version will be permanently removed.",
-    confirmLabel: "Discard"
+    cancelLabel: "Continue writing",
+    confirmLabel: "Discard",
+    onCancel
   });
 }
 
@@ -536,13 +542,9 @@ function restoreAutosaveDraft() {
 }
 
 async function confirmAndDiscardAutosaveDraft() {
-  const recovery = $("#autosaveRecovery");
-  const key = recovery?.dataset.key || getEditorAutosaveKey();
-  const confirmed = await confirmRecoveryDraftDiscard();
+  const confirmed = await confirmRecoveryDraftDiscard(restoreAutosaveDraft);
 
   if (!confirmed) {
-    recoveryAcknowledgedKey = key;
-    hideAutosaveRecovery();
     return;
   }
 
@@ -1528,7 +1530,11 @@ $("#editorBack").addEventListener("click", cancelEditor);
 $("#noteBack").addEventListener("click", () => showView("home"));
 $("#editBtn").addEventListener("click", () => openEditorForNote(state.currentNote));
 $("#deleteBtn").addEventListener("click", deleteCurrentNote);
-deleteCancelBtn?.addEventListener("click", () => closeDeleteModal(false));
+deleteCancelBtn?.addEventListener("click", () => {
+  const cancelHandler = pendingDeleteCancelHandler;
+  closeDeleteModal(false);
+  cancelHandler?.();
+});
 deleteConfirmBtn?.addEventListener("click", () => closeDeleteModal(true));
 deleteModal?.addEventListener("click", event => {
   if (event.target === deleteModal) closeDeleteModal(false);
