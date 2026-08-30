@@ -2,20 +2,31 @@
 
 > A lightweight, fast, and privacy-conscious web notebook for capturing, organizing, and accessing notes.
 
-ThinkMark is a full-stack web application built with a simple frontend, a serverless API, and a managed database. It focuses on keeping the experience fast and minimal while maintaining secure authentication and efficient data handling.
+ThinkMark is a full-stack web application built with a simple frontend, a serverless API, and a managed database. It focuses on keeping the experience fast and minimal while maintaining secure authentication, reliable note recovery, efficient data handling, and a low-request architecture.
+
+ThinkMark is **not currently operated as a centrally hosted public service**. It is designed to be **self-deployed**, allowing you to run your own independent instance using your own hosting, database, and credentials.
 
 ## ✨ Features
 
 * 🔐 Secure authentication with HttpOnly session cookies
 * 📝 Create, edit, and delete notes
-* 📚 Recent notes and all-notes views
+* 📚 Recent notes and All Notes views
 * 🔗 Open notes using unique codes
 * 🔄 Backlink support between notes
+* 💾 Local autosave for unsaved writing
+* ♻️ Recovery of interrupted new-note writing
+* ✏️ Recovery of unsaved edits to existing notes
+* ⚠️ Confirmation before permanently discarding recovered writing
 * 📱 Progressive Web App (PWA) support
 * 🌐 Offline support through a service worker
 * ⚡ Static assets served through Cloudflare's global network
 * 🛡️ Security headers and Content Security Policy
 * 🚀 Client-side state reuse to reduce unnecessary API requests
+* 🔄 Request deduplication for simultaneous note-list requests
+* 📦 Local state updates after create, edit, and delete operations
+* 🎨 Adjustable navigation typography
+* 📖 Adjustable note-reading and editor typography
+* 🌓 Dark-mode-aware interface and loading experience
 
 ## 🛠️ Tech Stack
 
@@ -25,6 +36,7 @@ ThinkMark is a full-stack web application built with a simple frontend, a server
 * **Database:** Supabase
 * **Authentication:** HttpOnly session cookies
 * **PWA:** Service Worker + Web App Manifest
+* **Local recovery:** Browser `localStorage`
 * **Version Control:** Git + GitHub
 
 ## 🏗️ Architecture
@@ -57,6 +69,8 @@ ThinkMark is a full-stack web application built with a simple frontend, a server
 
 Static files are served directly by Cloudflare Pages, while only `/api/*` requests invoke server-side Functions.
 
+The frontend maintains application state locally during normal navigation, reducing repeated requests for data that is already available.
+
 ## 📁 Project Structure
 
 ```text
@@ -85,6 +99,7 @@ ThinkMark/
 │
 ├── package.json
 ├── .gitignore
+├── LICENSE
 └── README.md
 ```
 
@@ -110,37 +125,162 @@ ThinkMark/
 | `PUT`    | `/api/notes/:code` | Update a note            |
 | `DELETE` | `/api/notes/:code` | Delete a note            |
 
-## ⚡ Performance
+## ⚡ Performance & Request Optimization
 
-ThinkMark is designed to avoid unnecessary network requests.
+ThinkMark is intentionally designed to avoid unnecessary network requests.
 
-Once notes are loaded, the frontend keeps them in local application state and reuses that data during normal navigation instead of repeatedly requesting the same list.
+### Client-side note state
 
-Mutations also update local state using the server response:
+Once the note list has been loaded, the frontend keeps the notes in application state and reuses that data during normal navigation.
+
+For example:
 
 ```text
-Create
-  ↓
+First Home load
+      ↓
+GET /api/notes
+      ↓
+Store notes locally
+      ↓
+Home → All Notes → Settings → Home
+      ↓
+Reuse existing state
+      ↓
+No additional /api/notes request
+```
+
+### Request deduplication
+
+If multiple parts of the application request the note list at approximately the same time, the same in-flight request can be reused rather than generating multiple identical requests.
+
+### Mutations update local state
+
+Create:
+
+```text
 POST /api/notes
-  ↓
-Update local state
+      ↓
+Server returns created note
+      ↓
+Insert into local state
+```
 
+Edit:
 
-Edit
-  ↓
+```text
 PUT /api/notes/:code
-  ↓
-Update local state
-
-
-Delete
-  ↓
-DELETE /api/notes/:code
-  ↓
+      ↓
+Server returns updated note
+      ↓
 Update local state
 ```
 
-This reduces redundant API calls and Cloudflare Function invocations while keeping the server as the source of truth.
+Delete:
+
+```text
+DELETE /api/notes/:code
+      ↓
+Remove note from local state
+```
+
+This avoids unnecessary follow-up requests such as refetching the entire note list after every mutation.
+
+The server remains the source of truth while the client avoids unnecessary synchronization requests.
+
+## 💾 Local Autosave & Recovery
+
+ThinkMark includes a browser-side autosave mechanism designed to protect writing from accidental navigation, browser closure, or interrupted sessions.
+
+Autosave uses `localStorage` and **does not make API requests while the user is typing**.
+
+### New notes
+
+Unsaved new-note content is stored locally under:
+
+```text
+thinkmark.editor.new
+```
+
+Once the note is successfully created:
+
+```text
+Editor
+  ↓
+Local autosave
+  ↓
+POST /api/notes
+  ↓
+Server confirms creation
+  ↓
+Update local application state
+  ↓
+Remove local new-note draft
+```
+
+A successfully saved note therefore does not remain as an old "new note" recovery draft.
+
+### Existing notes
+
+Unsaved edits are stored separately for each note:
+
+```text
+thinkmark.editor.note.<code>
+```
+
+The local draft is removed only after the corresponding `PUT /api/notes/:code` succeeds.
+
+### Recovery
+
+When a valid local draft is detected, ThinkMark can present:
+
+```text
+Unsaved note found
+
+[Continue writing] [Discard]
+```
+
+Choosing **Continue writing** restores the local draft.
+
+Choosing **Discard** opens the existing note-deletion confirmation interface before permanently removing the local draft.
+
+Discarding a recovery draft:
+
+* Does not delete the server-side note
+* Does not call the Notes API
+* Only removes the corresponding local `localStorage` entry
+
+This keeps local recovery separate from permanent server-side deletion.
+
+## 📱 PWA & Offline Support
+
+ThinkMark includes:
+
+* Web App Manifest
+* Service Worker
+* Installable PWA support
+* Static asset caching
+* Offline application support
+* Local writing recovery
+
+The service worker intentionally keeps API requests separate from static asset caching so authenticated dynamic data is not incorrectly treated as static content.
+
+Local autosave also allows writing to continue without requiring an active network connection. Server synchronization still occurs through the normal explicit save/create operations.
+
+## 🎨 User Experience
+
+ThinkMark keeps the interface intentionally minimal while providing controls for comfortable use.
+
+### Typography
+
+Navigation typography can be adjusted independently from note-writing typography.
+
+The editor and note-reading experience support their own appropriate text sizing so long notes remain comfortable to read and edit.
+
+### Loading experience
+
+The application uses an explicit authentication-loading state during startup rather than immediately displaying the login interface while the existing session is being checked.
+
+This prevents the logged-in user from seeing an unnecessary login-page flash during application initialization.
 
 ## 🔒 Security
 
@@ -167,16 +307,7 @@ Static responses are protected using security headers including:
 
 API responses retain their server-side security handling through Cloudflare Pages Functions.
 
-## 📱 PWA & Offline Support
-
-ThinkMark includes:
-
-* Web App Manifest
-* Service Worker
-* Static asset caching
-* Offline application support
-
-The service worker intentionally keeps API requests separate from static asset caching so authenticated dynamic data is not incorrectly treated as static content.
+The static Content Security Policy permits the same-origin service worker while the API-side policy can remain stricter because API responses do not register browser workers.
 
 ## 🚀 Getting Started
 
@@ -207,21 +338,31 @@ npm run dev
 
 The project uses Cloudflare's local Pages development environment.
 
-## ☁️ Deployment
+## ☁️ Self-Deployment
 
-ThinkMark is currently **not a centrally hosted public service**. The repository contains the application source code and deployment configuration needed to run your own instance.
+ThinkMark is currently **not a centrally hosted public service**.
 
-ThinkMark can be **self-deployed** using your own infrastructure and credentials.
+The repository contains the application source code and deployment configuration needed to run your own instance.
 
-For example, the reference deployment uses:
+You can self-deploy ThinkMark using your own infrastructure and credentials.
 
-- **Cloudflare Pages** — static frontend and serverless Functions
-- **Supabase** — database
-- **GitHub** — source control and deployment workflow
+The reference deployment uses:
 
-Each deployment is an independent ThinkMark instance. You are responsible for configuring and managing your own hosting, database, environment variables, and credentials.
+* **Cloudflare Pages** — static frontend and serverless Functions
+* **Supabase** — database
+* **GitHub** — source control and deployment workflow
 
-### Development → Production
+Each deployment is an independent ThinkMark instance. You are responsible for configuring and managing your own:
+
+* Hosting
+* Database
+* Environment variables
+* Authentication configuration
+* Credentials
+* Domains
+* Deployment pipeline
+
+## 🔄 Development → Production
 
 The repository uses separate development and production branches:
 
@@ -239,23 +380,63 @@ production
  ▼
 Live application
 ```
+
+The `main` branch is used for development and testing.
+
+The `production` branch represents the stable version deployed to the live environment.
+
+Cloudflare Preview deployments can be used to validate changes before promoting stable changes to production.
+
 ## 🧪 Testing
 
-Before promoting a change to production, important application flows should be verified:
+Before promoting a change to production, important application flows should be verified.
 
-* Login and logout
+### Authentication
+
+* Login
+* Logout
 * Session persistence after refresh
-* Navigation between Home, All Notes, and Settings
-* Creating a note
-* Editing a note
-* Deleting a note
-* Opening individual notes
-* Backlinks
-* Offline/PWA behavior
-* Static asset loading
-* API request behavior
+* No protected data remaining visible after logout
 
-Particular attention should be paid to ensuring that normal navigation does not generate redundant `/api/notes` requests.
+### Navigation
+
+* Home
+* All Notes
+* Settings
+* Repeated navigation between views
+* No unexpected duplicate `/api/notes` requests
+
+### Notes
+
+* Create a note
+* Edit a note
+* Delete a note
+* Open individual notes
+* Backlinks
+* Correct title/content display on note cards
+
+### Autosave & recovery
+
+* New-note autosave
+* Existing-note edit autosave
+* Recovery after accidental navigation
+* Continue writing
+* Discard confirmation
+* Cancel/Continue writing from the confirmation
+* Successful save clearing the corresponding local draft
+* Failed save preserving the local draft
+* No accidental restoration of previously saved notes as new-note drafts
+
+### PWA
+
+* Installation
+* Service worker registration
+* Static asset loading
+* Offline behavior
+
+### Performance
+
+Particular attention should be paid to ensuring that normal navigation and note mutations do not generate redundant API requests.
 
 ## 📌 Project Status
 
@@ -264,6 +445,8 @@ Particular attention should be paid to ensuring that normal navigation does not 
 The `production` branch represents the current stable version of ThinkMark.
 
 Development and experimental changes should be tested through the `main` branch and Cloudflare Preview deployments before being promoted to production.
+
+ThinkMark is currently intended primarily as a **self-deployable software project rather than a centrally hosted public service**.
 
 ## 📄 License
 
@@ -280,6 +463,9 @@ ThinkMark is a personal software engineering project built to explore practical 
 * Authentication
 * Database-backed applications
 * Progressive Web Apps
+* Offline-first recovery techniques
+* Client-side request optimization
 * Cloudflare Pages
 * Performance optimization
 * Secure web application architecture
+* Practical software engineering and deployment workflows
