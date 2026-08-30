@@ -346,6 +346,20 @@ function hideAutosaveRecovery() {
   if (recovery) recovery.hidden = true;
 }
 
+function clearAutosaveRecoveryState(key) {
+  removeAutosaveDraft(key);
+
+  const recovery = $("#autosaveRecovery");
+  if (recovery?.dataset.key === key) {
+    delete recovery.dataset.key;
+    hideAutosaveRecovery();
+  }
+
+  if (recoveryAcknowledgedKey === key) {
+    recoveryAcknowledgedKey = null;
+  }
+}
+
 function getEditorAutosaveKey(code = state.editingCode) {
   const normalizedCode = normalizeNoteCode(code);
   return normalizedCode
@@ -1280,7 +1294,8 @@ async function saveNote() {
         body: JSON.stringify({ title, content })
       });
 
-      removeAutosaveDraft(autosaveKey);
+      clearTimeout(autosaveTimer);
+      clearAutosaveRecoveryState(autosaveKey);
       setAutosaveStatus("");
 
       if (!upsertNoteInState(note)) {
@@ -1384,7 +1399,9 @@ function updateCharCount() {
 }
 
 function cancelEditor() {
-  if (state.editorDoneMode) {
+  const wasEditorDoneMode = state.editorDoneMode;
+
+  if (wasEditorDoneMode) {
     state.editorDoneMode = false;
     $("#noteTitle").readOnly = false;
     $("#noteContent").readOnly = false;
@@ -1392,7 +1409,7 @@ function cancelEditor() {
     $("#cancelBtn").textContent = "Cancel";
   }
 
-  showView(state.editorReturnView);
+  showView(state.editorReturnView, wasEditorDoneMode ? { skipAutosaveFlush: true } : {});
 }
 
 function formatDateTime(value) {
