@@ -47,12 +47,15 @@ const loginError = $("#loginError");
 const themeToggle = $("#themeToggle");
 const systemThemeQuery = window.matchMedia?.("(prefers-color-scheme: dark)");
 const deleteModal = $("#deleteModal");
+const deleteModalTitle = $("#deleteModalTitle");
+const deleteModalMessage = $("#deleteModalMessage");
 const deleteCancelBtn = $("#deleteCancelBtn");
 const deleteConfirmBtn = $("#deleteConfirmBtn");
 let pendingDeleteConfirmation = null;
 let noteListRequest = null;
 let autosaveTimer = null;
 let autosaveStatusTimer = null;
+let recoveryAcknowledgedKey = null;
 
 function setAuthState(authState) {
   state.authState = authState;
@@ -116,15 +119,39 @@ function closeDeleteModal(confirmed) {
   resolve(confirmed);
 }
 
-function confirmNoteDeletion() {
+function configureDeleteModal(options = {}) {
+  if (deleteModalTitle) deleteModalTitle.textContent = options.title || "Delete note?";
+  if (deleteModalMessage) deleteModalMessage.textContent = options.message || "This action cannot be undone.";
+  if (deleteConfirmBtn) deleteConfirmBtn.textContent = options.confirmLabel || "Delete";
+}
+
+function confirmWithDeleteModal(options = {}) {
   if (!deleteModal || !deleteCancelBtn || !deleteConfirmBtn) {
     return Promise.resolve(false);
   }
+
+  configureDeleteModal(options);
 
   return new Promise(resolve => {
     pendingDeleteConfirmation = resolve;
     deleteModal.hidden = false;
     deleteConfirmBtn.focus();
+  });
+}
+
+function confirmNoteDeletion() {
+  return confirmWithDeleteModal({
+    title: "Delete note?",
+    message: "This action cannot be undone.",
+    confirmLabel: "Delete"
+  });
+}
+
+function confirmRecoveryDraftDiscard() {
+  return confirmWithDeleteModal({
+    title: "Discard unsaved note?",
+    message: "This locally saved version will be permanently removed.",
+    confirmLabel: "Discard"
   });
 }
 
@@ -311,26 +338,6 @@ function setAutosaveStatus(message) {
 function hideAutosaveRecovery() {
   const recovery = $("#autosaveRecovery");
   if (recovery) recovery.hidden = true;
-  showAutosaveRecoveryInitialState();
-}
-
-function showAutosaveRecoveryInitialState(options = {}) {
-  $("#autosaveRecoveryPrompt").hidden = false;
-  $("#autosaveRecoveryActions").hidden = false;
-  $("#autosaveDiscardPrompt").hidden = true;
-  $("#autosaveDiscardActions").hidden = true;
-
-  if (options.focusDiscard) {
-    $("#autosaveDiscardBtn").focus();
-  }
-}
-
-function showAutosaveDiscardConfirmation() {
-  $("#autosaveRecoveryPrompt").hidden = true;
-  $("#autosaveRecoveryActions").hidden = true;
-  $("#autosaveDiscardPrompt").hidden = false;
-  $("#autosaveDiscardActions").hidden = false;
-  $("#autosaveKeepBtn").focus();
 }
 
 function getEditorAutosaveKey(code = state.editingCode) {
@@ -459,7 +466,6 @@ function showAutosaveRecovery(draft, options = {}) {
 
   recovery.dataset.key = options.key || getEditorAutosaveKey(draft.code);
   meta.textContent = getAutosaveRecoveryMessage(draft, options.note);
-  showAutosaveRecoveryInitialState();
   recovery.hidden = false;
 }
 
@@ -468,6 +474,11 @@ function checkEditorRecovery(options = {}) {
   const draft = readAutosaveDraft(key);
 
   if (!draft) {
+    hideAutosaveRecovery();
+    return;
+  }
+
+  if (recoveryAcknowledgedKey === key) {
     hideAutosaveRecovery();
     return;
   }
@@ -518,9 +529,24 @@ function restoreAutosaveDraft() {
   $("#noteTitle").value = draft.title;
   $("#noteContent").value = draft.content;
   updateCharCount();
+  recoveryAcknowledgedKey = key;
   hideAutosaveRecovery();
   setAutosaveStatus("Saved locally");
   $("#noteTitle").focus();
+}
+
+async function confirmAndDiscardAutosaveDraft() {
+  const recovery = $("#autosaveRecovery");
+  const key = recovery?.dataset.key || getEditorAutosaveKey();
+  const confirmed = await confirmRecoveryDraftDiscard();
+
+  if (!confirmed) {
+    recoveryAcknowledgedKey = key;
+    hideAutosaveRecovery();
+    return;
+  }
+
+  discardAutosaveDraft();
 }
 
 function discardAutosaveDraft() {
@@ -1148,6 +1174,7 @@ function openNewNote() {
   state.editingCode = null;
   state.editorDoneMode = false;
   state.editorReturnView = "home";
+  recoveryAcknowledgedKey = null;
   hideAutosaveRecovery();
   setAutosaveStatus("");
 
@@ -1172,6 +1199,7 @@ function openEditorForNote(note) {
   state.editingCode = note.code;
   state.editorDoneMode = false;
   state.editorReturnView = "note";
+  recoveryAcknowledgedKey = null;
   hideAutosaveRecovery();
   setAutosaveStatus("");
 
@@ -1556,11 +1584,7 @@ $("#noteContent").addEventListener("input", () => {
   scheduleAutosave();
 });
 $("#autosaveContinueBtn")?.addEventListener("click", restoreAutosaveDraft);
-$("#autosaveDiscardBtn")?.addEventListener("click", showAutosaveDiscardConfirmation);
-$("#autosaveKeepBtn")?.addEventListener("click", () => {
-  showAutosaveRecoveryInitialState({ focusDiscard: true });
-});
-$("#autosaveConfirmDiscardBtn")?.addEventListener("click", discardAutosaveDraft);
+$("#autosaveDiscardBtn")?.addEventListener("click", confirmAndDiscardAutosaveDraft);
 
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") {

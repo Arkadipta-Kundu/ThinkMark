@@ -187,23 +187,13 @@
 
         <div class="editor-body">
           <div id="autosaveRecovery" class="autosave-recovery" hidden>
-            <div class="autosave-recovery-copy">
-              <div id="autosaveRecoveryPrompt">
-                <strong>Unsaved note found</strong>
-                <span id="autosaveRecoveryMeta">Continue writing or discard it.</span>
-              </div>
-              <div id="autosaveDiscardPrompt" hidden>
-                <strong>Discard local draft?</strong>
-                <span>This will permanently remove the locally saved writing.</span>
-              </div>
+            <div>
+              <strong>Unsaved note found</strong>
+              <span id="autosaveRecoveryMeta">Continue writing or discard it.</span>
             </div>
-            <div id="autosaveRecoveryActions" class="autosave-recovery-actions">
+            <div class="autosave-recovery-actions">
               <button class="secondary-btn" id="autosaveContinueBtn" type="button">Continue writing</button>
               <button class="secondary-btn" id="autosaveDiscardBtn" type="button">Discard</button>
-            </div>
-            <div id="autosaveDiscardActions" class="autosave-recovery-actions" hidden>
-              <button class="secondary-btn" id="autosaveKeepBtn" type="button">Keep writing</button>
-              <button class="danger-btn" id="autosaveConfirmDiscardBtn" type="button">Discard</button>
             </div>
           </div>
 
@@ -415,7 +405,7 @@
   <div id="deleteModal" class="modal-backdrop" hidden>
     <section class="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="deleteModalTitle">
       <h2 id="deleteModalTitle">Delete note?</h2>
-      <p>This action cannot be undone.</p>
+      <p id="deleteModalMessage">This action cannot be undone.</p>
       <div class="confirm-actions">
         <button class="secondary-btn" id="deleteCancelBtn" type="button">Cancel</button>
         <button class="danger-btn" id="deleteConfirmBtn" type="button">Delete</button>
