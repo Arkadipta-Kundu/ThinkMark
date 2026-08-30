@@ -16,6 +16,10 @@ const FONT_SIZE_STORAGE_KEY = "thinkmark-font-size";
 const NOTE_FONT_SIZE_STORAGE_KEY = "thinkmark-note-font-size";
 const DEFAULT_SORT_STORAGE_KEY = "thinkmark-default-sort";
 const CONFIRM_DELETION_STORAGE_KEY = "thinkmark-confirm-deletion";
+const AUTOSAVE_STORAGE_PREFIX = "thinkmark.editor";
+const AUTOSAVE_NEW_NOTE_KEY = `${AUTOSAVE_STORAGE_PREFIX}.new`;
+const AUTOSAVE_VERSION = 1;
+const AUTOSAVE_DEBOUNCE_MS = 750;
 const NOTE_REFERENCE_PATTERN = /\[\[([a-z0-9]{4})\]\]/gi;
 const THEMES = {
   light: {
@@ -47,6 +51,8 @@ const deleteCancelBtn = $("#deleteCancelBtn");
 const deleteConfirmBtn = $("#deleteConfirmBtn");
 let pendingDeleteConfirmation = null;
 let noteListRequest = null;
+let autosaveTimer = null;
+let autosaveStatusTimer = null;
 
 function setAuthState(authState) {
   state.authState = authState;
@@ -284,6 +290,227 @@ function showToast(message) {
   }, 2200);
 }
 
+function getAutosaveStatus() {
+  return $("#autosaveStatus");
+}
+
+function setAutosaveStatus(message) {
+  const status = getAutosaveStatus();
+  if (!status) return;
+
+  clearTimeout(autosaveStatusTimer);
+  status.textContent = message;
+
+  if (message === "Saved locally") {
+    autosaveStatusTimer = setTimeout(() => {
+      if (status.textContent === message) status.textContent = "";
+    }, 4000);
+  }
+}
+
+function hideAutosaveRecovery() {
+  const recovery = $("#autosaveRecovery");
+  if (recovery) recovery.hidden = true;
+}
+
+function getEditorAutosaveKey(code = state.editingCode) {
+  const normalizedCode = normalizeNoteCode(code);
+  return normalizedCode
+    ? `${AUTOSAVE_STORAGE_PREFIX}.note.${normalizedCode}`
+    : AUTOSAVE_NEW_NOTE_KEY;
+}
+
+function hasMeaningfulEditorState(title, content) {
+  return Boolean(String(title || "").trim() || String(content || "").trim());
+}
+
+function safeJsonParse(value) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+function readAutosaveDraft(key) {
+  try {
+    const draft = safeJsonParse(localStorage.getItem(key));
+
+    if (
+      !draft ||
+      draft.version !== AUTOSAVE_VERSION ||
+      (draft.type !== "new" && draft.type !== "edit") ||
+      typeof draft.title !== "string" ||
+      typeof draft.content !== "string"
+    ) {
+      return null;
+    }
+
+    if (!hasMeaningfulEditorState(draft.title, draft.content)) {
+      localStorage.removeItem(key);
+      return null;
+    }
+
+    return draft;
+  } catch {
+    return null;
+  }
+}
+
+function removeAutosaveDraft(key = getEditorAutosaveKey()) {
+  try {
+    localStorage.removeItem(key);
+  } catch { }
+}
+
+function getCurrentEditorDraft() {
+  const editingCode = normalizeNoteCode(state.editingCode);
+  const note = editingCode ? findNoteInState(editingCode) || state.currentNote : null;
+
+  return {
+    version: AUTOSAVE_VERSION,
+    type: editingCode ? "edit" : "new",
+    code: editingCode || null,
+    title: $("#noteTitle").value,
+    content: $("#noteContent").value,
+    savedAt: new Date().toISOString(),
+    baseUpdatedAt: editingCode ? note?.updated_at || null : null
+  };
+}
+
+function writeCurrentEditorDraft(options = {}) {
+  if (state.currentView !== "editor" || state.editorDoneMode) return;
+
+  const draft = getCurrentEditorDraft();
+  const key = getEditorAutosaveKey(draft.code);
+
+  if (!hasMeaningfulEditorState(draft.title, draft.content)) {
+    removeAutosaveDraft(key);
+    if (!options.silent) setAutosaveStatus("");
+    return;
+  }
+
+  try {
+    localStorage.setItem(key, JSON.stringify(draft));
+    if (!options.silent) setAutosaveStatus("Saved locally");
+  } catch {
+    if (!options.silent) setAutosaveStatus("Local save unavailable");
+  }
+}
+
+function flushPendingAutosave(options = {}) {
+  clearTimeout(autosaveTimer);
+  autosaveTimer = null;
+  writeCurrentEditorDraft(options);
+}
+
+function scheduleAutosave() {
+  if (state.currentView !== "editor" || state.editorDoneMode) return;
+
+  clearTimeout(autosaveTimer);
+
+  if (!hasMeaningfulEditorState($("#noteTitle").value, $("#noteContent").value)) {
+    removeAutosaveDraft();
+    setAutosaveStatus("");
+    return;
+  }
+
+  setAutosaveStatus("Saving locally...");
+  autosaveTimer = setTimeout(writeCurrentEditorDraft, AUTOSAVE_DEBOUNCE_MS);
+}
+
+function draftsMatchEditor(draft) {
+  return draft?.title === $("#noteTitle").value && draft?.content === $("#noteContent").value;
+}
+
+function getAutosaveRecoveryMessage(draft, note) {
+  if (draft?.type === "edit" && note?.updated_at && draft.baseUpdatedAt !== note.updated_at) {
+    return "Local changes were saved before the latest server version.";
+  }
+
+  return "Continue writing or discard it.";
+}
+
+function showAutosaveRecovery(draft, options = {}) {
+  const recovery = $("#autosaveRecovery");
+  const meta = $("#autosaveRecoveryMeta");
+
+  if (!recovery || !draft) return;
+
+  recovery.dataset.key = options.key || getEditorAutosaveKey(draft.code);
+  meta.textContent = getAutosaveRecoveryMessage(draft, options.note);
+  recovery.hidden = false;
+}
+
+function checkEditorRecovery(options = {}) {
+  const key = options.key || getEditorAutosaveKey();
+  const draft = readAutosaveDraft(key);
+
+  if (!draft) {
+    hideAutosaveRecovery();
+    return;
+  }
+
+  const editingCode = normalizeNoteCode(state.editingCode);
+  const draftCode = normalizeNoteCode(draft.code);
+  const belongsToEditor = editingCode
+    ? draft.type === "edit" && draftCode === editingCode
+    : draft.type === "new" && !draftCode;
+
+  if (!belongsToEditor) {
+    hideAutosaveRecovery();
+    return;
+  }
+
+  if (draftsMatchEditor(draft)) {
+    hideAutosaveRecovery();
+    setAutosaveStatus("Saved locally");
+    return;
+  }
+
+  const note = options.note || null;
+
+  if (
+    draft.type === "edit" &&
+    note &&
+    draft.title === (note.title || "") &&
+    draft.content === note.content
+  ) {
+    removeAutosaveDraft(key);
+    hideAutosaveRecovery();
+    return;
+  }
+
+  showAutosaveRecovery(draft, { key, note });
+}
+
+function restoreAutosaveDraft() {
+  const recovery = $("#autosaveRecovery");
+  const key = recovery?.dataset.key || getEditorAutosaveKey();
+  const draft = readAutosaveDraft(key);
+
+  if (!draft) {
+    hideAutosaveRecovery();
+    return;
+  }
+
+  $("#noteTitle").value = draft.title;
+  $("#noteContent").value = draft.content;
+  updateCharCount();
+  hideAutosaveRecovery();
+  setAutosaveStatus("Saved locally");
+  $("#noteTitle").focus();
+}
+
+function discardAutosaveDraft() {
+  const recovery = $("#autosaveRecovery");
+  const key = recovery?.dataset.key || getEditorAutosaveKey();
+
+  removeAutosaveDraft(key);
+  hideAutosaveRecovery();
+  setAutosaveStatus("");
+}
+
 function isOffline() {
   return typeof navigator !== "undefined" && navigator.onLine === false;
 }
@@ -361,7 +588,11 @@ function registerConnectionStatus() {
   });
 }
 
-function showView(viewName) {
+function showView(viewName, options = {}) {
+  if (state.currentView === "editor" && viewName !== "editor" && !options.skipAutosaveFlush) {
+    flushPendingAutosave({ silent: true });
+  }
+
   state.currentView = viewName;
 
   document.querySelectorAll(".view").forEach(view => {
@@ -892,9 +1123,12 @@ async function openNote(code, options = {}) {
 }
 
 function openNewNote() {
+  clearTimeout(autosaveTimer);
   state.editingCode = null;
   state.editorDoneMode = false;
   state.editorReturnView = "home";
+  hideAutosaveRecovery();
+  setAutosaveStatus("");
 
   $("#editorMode").textContent = "NEW NOTE";
   $("#codePreview").textContent = "?".repeat(NOTE_CODE_LENGTH);
@@ -908,13 +1142,17 @@ function openNewNote() {
   $("#saveBtn").textContent = "Save & get code";
 
   showView("editor");
+  checkEditorRecovery({ key: AUTOSAVE_NEW_NOTE_KEY });
   setTimeout(() => $("#noteTitle").focus(), 50);
 }
 
 function openEditorForNote(note) {
+  clearTimeout(autosaveTimer);
   state.editingCode = note.code;
   state.editorDoneMode = false;
   state.editorReturnView = "note";
+  hideAutosaveRecovery();
+  setAutosaveStatus("");
 
   $("#editorMode").textContent = "EDIT NOTE";
   $("#codePreview").textContent = note.code;
@@ -928,6 +1166,7 @@ function openEditorForNote(note) {
   $("#saveBtn").textContent = "Save changes";
 
   showView("editor");
+  checkEditorRecovery({ key: getEditorAutosaveKey(note.code), note });
   setTimeout(() => $("#noteTitle").focus(), 50);
 }
 
@@ -951,6 +1190,7 @@ async function saveNote() {
 
   try {
     if (state.editingCode) {
+      const autosaveKey = getEditorAutosaveKey(state.editingCode);
       const note = await api(
         `/api/notes/${encodeURIComponent(state.editingCode)}`,
         {
@@ -959,21 +1199,34 @@ async function saveNote() {
         }
       );
 
+      clearTimeout(autosaveTimer);
+      removeAutosaveDraft(autosaveKey);
+      setAutosaveStatus("");
+
       if (!upsertNoteInState(note)) {
-        await openNote(note.code, { force: true });
-        return;
+        state.editorDoneMode = true;
+        try {
+          await openNote(note.code, { force: true });
+          return;
+        } finally {
+          state.editorDoneMode = false;
+        }
       }
 
       state.currentNote = note;
       $("#codePreview").textContent = note.code;
       showToast("Saved.");
       renderCurrentNote(note);
-      showView("note");
+      showView("note", { skipAutosaveFlush: true });
     } else {
+      const autosaveKey = AUTOSAVE_NEW_NOTE_KEY;
       const note = await api("/api/notes", {
         method: "POST",
         body: JSON.stringify({ title, content })
       });
+
+      removeAutosaveDraft(autosaveKey);
+      setAutosaveStatus("");
 
       if (!upsertNoteInState(note)) {
         state.notesLoaded = false;
@@ -992,8 +1245,11 @@ async function saveNote() {
 }
 
 function showCodeSaved(code) {
+  clearTimeout(autosaveTimer);
   state.editorDoneMode = true;
   state.editorReturnView = "home";
+  hideAutosaveRecovery();
+  setAutosaveStatus("");
   $("#editorMode").textContent = "SAVED";
   $("#codePreview").textContent = code;
   $("#noteTitle").readOnly = true;
@@ -1273,7 +1529,23 @@ $("#searchForm").addEventListener("submit", event => {
 
 $("#sortSelect").addEventListener("change", loadAllNotes);
 $("#listSearch").addEventListener("input", renderFilteredNotes);
-$("#noteContent").addEventListener("input", updateCharCount);
+$("#noteTitle").addEventListener("input", scheduleAutosave);
+$("#noteContent").addEventListener("input", () => {
+  updateCharCount();
+  scheduleAutosave();
+});
+$("#autosaveContinueBtn")?.addEventListener("click", restoreAutosaveDraft);
+$("#autosaveDiscardBtn")?.addEventListener("click", discardAutosaveDraft);
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") {
+    flushPendingAutosave({ silent: true });
+  }
+});
+
+window.addEventListener("pagehide", () => {
+  flushPendingAutosave({ silent: true });
+});
 
 $("#logoutBtn").addEventListener("click", async () => {
   await fetch("/api/auth/logout", {

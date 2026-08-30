@@ -186,6 +186,17 @@
         </div>
 
         <div class="editor-body">
+          <div id="autosaveRecovery" class="autosave-recovery" hidden>
+            <div>
+              <strong>Unsaved note found</strong>
+              <span id="autosaveRecoveryMeta">Continue writing or discard it.</span>
+            </div>
+            <div class="autosave-recovery-actions">
+              <button class="secondary-btn" id="autosaveContinueBtn" type="button">Continue writing</button>
+              <button class="secondary-btn" id="autosaveDiscardBtn" type="button">Discard</button>
+            </div>
+          </div>
+
           <label class="editor-field" for="noteTitle">
             <span class="editor-label">Title (optional)</span>
             <input
@@ -209,7 +220,10 @@
         </div>
 
         <div class="editor-footer">
-          <span id="charCount">0 characters</span>
+          <div class="editor-status">
+            <span id="charCount">0 characters</span>
+            <span id="autosaveStatus" class="autosave-status" aria-live="polite"></span>
+          </div>
           <div class="editor-actions">
             <button class="secondary-btn" id="cancelBtn">Cancel</button>
             <button class="primary-btn" id="saveBtn">Save & get code</button>

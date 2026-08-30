@@ -683,6 +683,40 @@ select {
   padding: 18px 26px 0;
 }
 
+.autosave-recovery {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-soft);
+}
+
+.autosave-recovery[hidden] {
+  display: none;
+}
+
+.autosave-recovery strong {
+  display: block;
+  font-size: 13px;
+}
+
+.autosave-recovery span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.autosave-recovery-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
 .editor-field {
   display: block;
 }
@@ -771,6 +805,17 @@ textarea::-webkit-scrollbar {
   border-top: 1px solid var(--border);
   color: var(--muted);
   font-size: 12px;
+}
+
+.editor-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  min-width: 0;
+}
+
+.autosave-status {
+  color: var(--muted);
 }
 
 .editor-actions,
@@ -1299,8 +1344,18 @@ textarea::-webkit-scrollbar {
   }
 
   .editor-header,
+  .autosave-recovery,
   .editor-footer {
     gap: 15px;
+  }
+
+  .autosave-recovery {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .autosave-recovery-actions {
+    flex-direction: column;
   }
 
   .editor-header {
