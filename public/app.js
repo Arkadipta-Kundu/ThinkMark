@@ -111,6 +111,14 @@ function isDeleteModalOpen() {
   return deleteModal && !deleteModal.hidden;
 }
 
+function isLoginModalOpen() {
+  return passwordModal?.style.display !== "none";
+}
+
+function isModalOpen() {
+  return isLoginModalOpen() || isDeleteModalOpen();
+}
+
 function closeDeleteModal(confirmed) {
   if (!pendingDeleteConfirmation) return;
 
@@ -1486,7 +1494,22 @@ function isTypingTarget(target) {
 }
 
 function canUseAppShortcuts(event) {
-  return state.authState === AUTH_STATES.AUTHENTICATED && !isTypingTarget(event.target) && passwordModal.style.display === "none" && !isDeleteModalOpen();
+  return state.authState === AUTH_STATES.AUTHENTICATED && !isTypingTarget(event.target) && !isModalOpen();
+}
+
+function isPlainKeyEvent(event) {
+  return !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey;
+}
+
+function isEditorDoneAvailable() {
+  return state.currentView === "editor" &&
+    state.editorDoneMode &&
+    $("#saveBtn").style.display === "none" &&
+    !$("#saveBtn").disabled;
+}
+
+function goBackFromNote() {
+  showView("home");
 }
 
 function handleKeyboardShortcuts(event) {
@@ -1502,7 +1525,27 @@ function handleKeyboardShortcuts(event) {
     return;
   }
 
-  if (key === "n" && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && canUseAppShortcuts(event)) {
+  if (event.key === "Escape" && isPlainKeyEvent(event) && canUseAppShortcuts(event)) {
+    if (state.currentView === "editor") {
+      event.preventDefault();
+      cancelEditor();
+      return;
+    }
+
+    if (state.currentView === "note") {
+      event.preventDefault();
+      goBackFromNote();
+      return;
+    }
+  }
+
+  if (event.key === "Enter" && isPlainKeyEvent(event) && canUseAppShortcuts(event) && isEditorDoneAvailable()) {
+    event.preventDefault();
+    cancelEditor();
+    return;
+  }
+
+  if (key === "n" && isPlainKeyEvent(event) && canUseAppShortcuts(event)) {
     event.preventDefault();
     openNewNote();
   }
@@ -1548,7 +1591,7 @@ $("#newNoteBtn2").addEventListener("click", openNewNote);
 $("#saveBtn").addEventListener("click", saveNote);
 $("#cancelBtn").addEventListener("click", cancelEditor);
 $("#editorBack").addEventListener("click", cancelEditor);
-$("#noteBack").addEventListener("click", () => showView("home"));
+$("#noteBack").addEventListener("click", goBackFromNote);
 $("#editBtn").addEventListener("click", () => openEditorForNote(state.currentNote));
 $("#deleteBtn").addEventListener("click", deleteCurrentNote);
 deleteCancelBtn?.addEventListener("click", () => {
