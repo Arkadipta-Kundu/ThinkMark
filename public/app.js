@@ -945,8 +945,10 @@ function renderInlineMarkdown(text, referenceIndex = new Map()) {
       const anchor = `<a href="${escapeAttribute(normalizedUrl)}" target="_blank" rel="noopener noreferrer">${url}</a>`;
       return `${lead}${anchor}${trailing}`;
     })
-    .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
-    .replace(/(^|[^\*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+    .replace(/\*\*\*([^*\n](?:.*?[^*\n])?)\*\*\*/g, "<strong><em>$1</em></strong>")
+    .replace(/\*\*([^*\n](?:.*?[^*\n])?)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^\*])\*([^*\n](?:.*?[^*\n])?)\*/g, "$1<em>$2</em>")
+    .replace(/~~([^~\n](?:.*?[^~\n])?)~~/g, "<del>$1</del>");
 
   markdownLinkParts.forEach((link, index) => {
     html = html.replaceAll(markdownLinkPlaceholder(index), link);
@@ -957,6 +959,155 @@ function renderInlineMarkdown(text, referenceIndex = new Map()) {
   });
 
   return html;
+}
+
+function getIndent(line) {
+  return (line.match(/^\s*/) || [""])[0].replace(/\t/g, "    ").length;
+}
+
+function matchListItem(line) {
+  const match = line.match(/^(\s*)([-*+]|\d+[.)])\s+(.+)$/);
+  if (!match) return null;
+
+  return {
+    indent: getIndent(match[1]),
+    ordered: /^\d/.test(match[2]),
+    content: match[3]
+  };
+}
+
+function isBlockStart(line) {
+  return (
+    !line.trim() ||
+    line.trimStart().startsWith("```") ||
+    /^(#{1,6})\s+/.test(line) ||
+    /^ {0,3}([-*_])(?:\s*\1){2,}\s*$/.test(line) ||
+    /^\s*>\s?/.test(line) ||
+    Boolean(matchListItem(line)) ||
+    isTableStart(line)
+  );
+}
+
+function renderParagraph(lines, referenceIndex) {
+  const parts = [];
+
+  lines.forEach((line, index) => {
+    const hardBreak = /(?: {2,}|\\)$/.test(line);
+    const content = line.replace(/(?: {2,}|\\)$/, "").trim();
+
+    if (content) parts.push(renderInlineMarkdown(content, referenceIndex));
+    if (hardBreak && index < lines.length - 1) parts.push("<br>");
+    else if (index < lines.length - 1) parts.push(" ");
+  });
+
+  return `<p>${parts.join("")}</p>`;
+}
+
+function renderList(lines, startIndex, referenceIndex) {
+  const firstItem = matchListItem(lines[startIndex]);
+  const baseIndent = firstItem.indent;
+  const ordered = firstItem.ordered;
+  const tag = ordered ? "ol" : "ul";
+  const items = [];
+  let index = startIndex;
+
+  while (index < lines.length) {
+    const item = matchListItem(lines[index]);
+    if (!item || item.indent < baseIndent || item.ordered !== ordered) break;
+
+    if (item.indent > baseIndent) {
+      if (!items.length) break;
+      const nested = renderList(lines, index, referenceIndex);
+      items[items.length - 1] = items[items.length - 1].replace("</li>", `${nested.html}</li>`);
+      index = nested.nextIndex;
+      continue;
+    }
+
+    const itemParts = [renderInlineMarkdown(item.content.trim(), referenceIndex)];
+    index += 1;
+
+    while (index < lines.length) {
+      const nextItem = matchListItem(lines[index]);
+
+      if (nextItem) {
+        if (nextItem.indent > baseIndent) {
+          const nested = renderList(lines, index, referenceIndex);
+          itemParts.push(nested.html);
+          index = nested.nextIndex;
+          continue;
+        }
+
+        break;
+      }
+
+      if (!lines[index].trim()) {
+        const afterBlank = matchListItem(lines[index + 1] || "");
+        if (!afterBlank || afterBlank.indent < baseIndent) break;
+        index += 1;
+        continue;
+      }
+
+      if (isBlockStart(lines[index])) break;
+      itemParts.push(` ${renderInlineMarkdown(lines[index].trim(), referenceIndex)}`);
+      index += 1;
+    }
+
+    items.push(`<li>${itemParts.join("")}</li>`);
+  }
+
+  return { html: `<${tag}>${items.join("")}</${tag}>`, nextIndex: index };
+}
+
+function splitTableRow(line) {
+  let row = line.trim();
+  if (row.startsWith("|")) row = row.slice(1);
+  if (row.endsWith("|")) row = row.slice(0, -1);
+  return row.split("|").map(cell => cell.trim());
+}
+
+function parseTableAlignment(line) {
+  const cells = splitTableRow(line);
+  if (!cells.length) return null;
+
+  const alignments = [];
+  for (const cell of cells) {
+    if (!/^:?-{3,}:?$/.test(cell)) return null;
+    const left = cell.startsWith(":");
+    const right = cell.endsWith(":");
+    alignments.push(left && right ? "center" : right ? "right" : left ? "left" : "");
+  }
+
+  return alignments;
+}
+
+function isTableStart(line, nextLine = "") {
+  return line.includes("|") && Boolean(parseTableAlignment(nextLine));
+}
+
+function renderTable(lines, startIndex, referenceIndex) {
+  const headers = splitTableRow(lines[startIndex]);
+  const alignments = parseTableAlignment(lines[startIndex + 1]);
+  const rows = [];
+  let index = startIndex + 2;
+
+  while (index < lines.length && lines[index].trim() && lines[index].includes("|")) {
+    rows.push(splitTableRow(lines[index]));
+    index += 1;
+  }
+
+  const alignmentAttribute = (columnIndex) => {
+    const alignment = alignments[columnIndex];
+    return alignment ? ` style="text-align: ${alignment}"` : "";
+  };
+  const renderCells = (cells, tag) => headers.map((_, columnIndex) => {
+    const content = cells[columnIndex] || "";
+    return `<${tag}${alignmentAttribute(columnIndex)}>${renderInlineMarkdown(content, referenceIndex)}</${tag}>`;
+  }).join("");
+
+  return {
+    html: `<div class="table-wrap"><table><thead><tr>${renderCells(headers, "th")}</tr></thead><tbody>${rows.map(row => `<tr>${renderCells(row, "td")}</tr>`).join("")}</tbody></table></div>`,
+    nextIndex: index
+  };
 }
 
 function renderMarkdown(markdown, referenceIndex = new Map()) {
@@ -972,8 +1123,10 @@ function renderMarkdown(markdown, referenceIndex = new Map()) {
       continue;
     }
 
-    if (line.trimStart().startsWith("```")) {
+    const fence = line.trimStart().match(/^```([A-Za-z0-9_-]+)?\s*$/);
+    if (fence) {
       const codeLines = [];
+      const language = fence[1] ? ` class="language-${escapeAttribute(fence[1])}"` : "";
       index += 1;
 
       while (index < lines.length && !lines[index].trimStart().startsWith("```")) {
@@ -982,7 +1135,7 @@ function renderMarkdown(markdown, referenceIndex = new Map()) {
       }
 
       if (index < lines.length) index += 1;
-      blocks.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
+      blocks.push(`<pre><code${language}>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
       continue;
     }
 
@@ -994,33 +1147,33 @@ function renderMarkdown(markdown, referenceIndex = new Map()) {
       continue;
     }
 
-    if (/^\s*[-*]\s+/.test(line)) {
-      const items = [];
-      while (index < lines.length && /^\s*[-*]\s+/.test(lines[index])) {
-        items.push(`<li>${renderInlineMarkdown(lines[index].replace(/^\s*[-*]\s+/, ""), referenceIndex)}</li>`);
-        index += 1;
-      }
-      blocks.push(`<ul>${items.join("")}</ul>`);
+    if (/^ {0,3}([-*_])(?:\s*\1){2,}\s*$/.test(line)) {
+      blocks.push("<hr>");
+      index += 1;
       continue;
     }
 
-    if (/^\s*\d+[.)]\s+/.test(line)) {
-      const items = [];
-      while (index < lines.length && /^\s*\d+[.)]\s+/.test(lines[index])) {
-        items.push(`<li>${renderInlineMarkdown(lines[index].replace(/^\s*\d+[.)]\s+/, ""), referenceIndex)}</li>`);
-        index += 1;
-      }
-      blocks.push(`<ol>${items.join("")}</ol>`);
+    if (isTableStart(line, lines[index + 1] || "")) {
+      const table = renderTable(lines, index, referenceIndex);
+      blocks.push(table.html);
+      index = table.nextIndex;
+      continue;
+    }
+
+    if (matchListItem(line)) {
+      const list = renderList(lines, index, referenceIndex);
+      blocks.push(list.html);
+      index = list.nextIndex;
       continue;
     }
 
     if (/^\s*>\s?/.test(line)) {
       const quoteLines = [];
-      while (index < lines.length && /^\s*>\s?/.test(lines[index])) {
-        quoteLines.push(lines[index].replace(/^\s*>\s?/, "").trim());
+      while (index < lines.length && (/^\s*>\s?/.test(lines[index]) || !lines[index].trim())) {
+        quoteLines.push(lines[index].replace(/^\s*>\s?/, ""));
         index += 1;
       }
-      blocks.push(`<blockquote><p>${renderInlineMarkdown(quoteLines.join(" "), referenceIndex)}</p></blockquote>`);
+      blocks.push(`<blockquote>${renderMarkdown(quoteLines.join("\n"), referenceIndex)}</blockquote>`);
       continue;
     }
 
@@ -1028,17 +1181,13 @@ function renderMarkdown(markdown, referenceIndex = new Map()) {
     while (
       index < lines.length &&
       lines[index].trim() &&
-      !lines[index].trimStart().startsWith("```") &&
-      !/^(#{1,6})\s+/.test(lines[index]) &&
-      !/^\s*[-*]\s+/.test(lines[index]) &&
-      !/^\s*\d+[.)]\s+/.test(lines[index]) &&
-      !/^\s*>\s?/.test(lines[index])
+      !isBlockStart(lines[index])
     ) {
-      paragraph.push(lines[index].trim());
+      paragraph.push(lines[index]);
       index += 1;
     }
 
-    blocks.push(`<p>${renderInlineMarkdown(paragraph.join(" "), referenceIndex)}</p>`);
+    blocks.push(renderParagraph(paragraph, referenceIndex));
   }
 
   return sanitizeRenderedMarkdown(blocks.join(""));
@@ -1047,11 +1196,15 @@ function renderMarkdown(markdown, referenceIndex = new Map()) {
 function sanitizeRenderedMarkdown(html) {
   const template = document.createElement("template");
   const allowedTags = new Set([
-    "A", "BLOCKQUOTE", "CODE", "EM", "H1", "H2", "H3", "H4", "H5", "H6",
-    "LI", "OL", "P", "PRE", "SPAN", "STRONG", "UL"
+    "A", "BLOCKQUOTE", "BR", "CODE", "DEL", "DIV", "EM", "H1", "H2", "H3", "H4", "H5", "H6",
+    "HR", "LI", "OL", "P", "PRE", "SPAN", "STRONG", "TABLE", "TBODY", "TD", "TH", "THEAD", "TR", "UL"
   ]);
   const allowedAttributes = {
     A: new Set(["class", "data-note-code", "href", "rel", "target"]),
+    CODE: new Set(["class"]),
+    DIV: new Set(["class"]),
+    TD: new Set(["style"]),
+    TH: new Set(["style"]),
     SPAN: new Set(["class"])
   };
 
@@ -1067,6 +1220,14 @@ function sanitizeRenderedMarkdown(html) {
       const allowed = allowedAttributes[element.tagName]?.has(attribute.name);
       if (!allowed) element.removeAttribute(attribute.name);
     });
+
+    if (
+      ["TD", "TH"].includes(element.tagName) &&
+      element.getAttribute("style") &&
+      !/^text-align:\s*(left|center|right);?$/i.test(element.getAttribute("style"))
+    ) {
+      element.removeAttribute("style");
+    }
 
     if (element.tagName === "A" && !isSafeUrl(element.getAttribute("href"))) {
       element.removeAttribute("href");
