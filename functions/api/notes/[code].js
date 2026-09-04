@@ -4,9 +4,30 @@ import { supabaseRequest } from "../_supabase.js";
 
 const CODE_PATTERN = /^[a-z0-9]{4}$/;
 const MAX_TITLE_LENGTH = 200;
+const MAX_TAGS = 30;
+const TAG_PATTERN = /^[a-z0-9][a-z0-9_-]{0,39}$/;
 
 function validCode(code) {
   return CODE_PATTERN.test(code);
+}
+
+function normalizeTags(value) {
+  if (!Array.isArray(value)) return [];
+
+  const tags = [];
+  const seen = new Set();
+
+  for (const rawTag of value) {
+    if (typeof rawTag !== "string") continue;
+
+    const tag = rawTag.trim().replace(/^#+/, "").toLowerCase();
+    if (!TAG_PATTERN.test(tag) || seen.has(tag)) continue;
+
+    seen.add(tag);
+    tags.push(tag);
+  }
+
+  return tags.slice(0, MAX_TAGS);
 }
 
 export async function onRequestGet({ params, request, env }) {
@@ -23,7 +44,7 @@ export async function onRequestGet({ params, request, env }) {
 
   const response = await supabaseRequest(
     env,
-    `notes?select=code,title,content,created_at,updated_at&code=eq.${encodeURIComponent(code)}`
+    `notes?select=code,title,content,tags,created_at,updated_at&code=eq.${encodeURIComponent(code)}`
   );
 
   if (!response.ok) {
@@ -75,6 +96,7 @@ export async function onRequestPut({ params, request, env, waitUntil }) {
   const title = typeof body.title === "string"
     ? body.title.trim()
     : "";
+  const tags = normalizeTags(body.tags);
 
   if (!content) {
     return Response.json(
@@ -108,6 +130,7 @@ export async function onRequestPut({ params, request, env, waitUntil }) {
       body: JSON.stringify({
         title: title || null,
         content,
+        tags,
         updated_at: new Date().toISOString()
       })
     }

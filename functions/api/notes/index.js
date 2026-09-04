@@ -5,6 +5,8 @@ import { supabaseRequest } from "../_supabase.js";
 const CODE_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
 const CODE_LENGTH = 4;
 const MAX_TITLE_LENGTH = 200;
+const MAX_TAGS = 30;
+const TAG_PATTERN = /^[a-z0-9][a-z0-9_-]{0,39}$/;
 
 function generateCode() {
   const bytes = crypto.getRandomValues(new Uint8Array(CODE_LENGTH));
@@ -40,6 +42,25 @@ async function uniqueCode(env) {
   throw new Error("Could not generate a unique code.");
 }
 
+function normalizeTags(value) {
+  if (!Array.isArray(value)) return [];
+
+  const tags = [];
+  const seen = new Set();
+
+  for (const rawTag of value) {
+    if (typeof rawTag !== "string") continue;
+
+    const tag = rawTag.trim().replace(/^#+/, "").toLowerCase();
+    if (!TAG_PATTERN.test(tag) || seen.has(tag)) continue;
+
+    seen.add(tag);
+    tags.push(tag);
+  }
+
+  return tags.slice(0, MAX_TAGS);
+}
+
 export async function onRequestGet({ request, env }) {
   if (!(await isAuthorized(request, env))) return unauthorized();
 
@@ -50,7 +71,7 @@ export async function onRequestGet({ request, env }) {
 
   const response = await supabaseRequest(
     env,
-    `notes?select=code,title,content,created_at,updated_at&order=${sort}`
+    `notes?select=code,title,content,tags,created_at,updated_at&order=${sort}`
   );
 
   if (!response.ok) {
@@ -84,6 +105,7 @@ export async function onRequestPost({ request, env, waitUntil }) {
   const title = typeof body.title === "string"
     ? body.title.trim()
     : "";
+  const tags = normalizeTags(body.tags);
 
   if (!content) {
     return Response.json(
@@ -117,7 +139,8 @@ export async function onRequestPost({ request, env, waitUntil }) {
       body: JSON.stringify({
         code,
         title: title || null,
-        content
+        content,
+        tags
       })
     });
 

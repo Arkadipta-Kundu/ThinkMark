@@ -6,7 +6,8 @@ const state = {
   editorDoneMode: false,
   editorReturnView: "home",
   notes: [],
-  notesLoaded: false
+  notesLoaded: false,
+  selectedTag: null
 };
 
 const NOTE_CODE_LENGTH = 4;
@@ -21,6 +22,7 @@ const AUTOSAVE_NEW_NOTE_KEY = `${AUTOSAVE_STORAGE_PREFIX}.new`;
 const AUTOSAVE_VERSION = 1;
 const AUTOSAVE_DEBOUNCE_MS = 750;
 const NOTE_REFERENCE_PATTERN = /\[\[([a-z0-9]{4})\]\]/gi;
+const TAG_PATTERN = /^[a-z0-9][a-z0-9_-]{0,39}$/;
 const THEMES = {
   light: {
     label: "Switch to dark mode",
@@ -72,15 +74,20 @@ function resetPrivateState() {
   state.editorReturnView = "home";
   state.notes = [];
   state.notesLoaded = false;
+  state.selectedTag = null;
   noteListRequest = null;
 
   $("#recentList").innerHTML = `<div class="empty-state">No notes yet.</div>`;
   $("#allNotesList").innerHTML = `<div class="empty-state">No notes yet.</div>`;
+  $("#tagFilters").innerHTML = "";
+  $("#tagFilters").hidden = true;
   $("#settingsTotalNotes").textContent = "0";
   $("#noteContentView").innerHTML = "";
   $("#noteTitleView").textContent = "";
   $("#noteTitleView").hidden = true;
   $("#noteDate").textContent = "";
+  $("#noteTagsView").innerHTML = "";
+  $("#noteTagsView").hidden = true;
   $("#backlinks").hidden = true;
   $("#backlinks").innerHTML = "";
 }
@@ -401,6 +408,8 @@ function readAutosaveDraft(key) {
       return null;
     }
 
+    draft.tags = normalizeTags(draft.tags || []);
+
     if (!hasMeaningfulEditorState(draft.title, draft.content)) {
       localStorage.removeItem(key);
       return null;
@@ -428,6 +437,7 @@ function getCurrentEditorDraft() {
     code: editingCode || null,
     title: $("#noteTitle").value,
     content: $("#noteContent").value,
+    tags: readEditorTags(),
     savedAt: new Date().toISOString(),
     baseUpdatedAt: editingCode ? note?.updated_at || null : null
   };
@@ -475,7 +485,9 @@ function scheduleAutosave() {
 }
 
 function draftsMatchEditor(draft) {
-  return draft?.title === $("#noteTitle").value && draft?.content === $("#noteContent").value;
+  return draft?.title === $("#noteTitle").value &&
+    draft?.content === $("#noteContent").value &&
+    tagsEqual(draft.tags || [], readEditorTags());
 }
 
 function getAutosaveRecoveryMessage(draft, note) {
@@ -534,7 +546,8 @@ function checkEditorRecovery(options = {}) {
     draft.type === "edit" &&
     note &&
     draft.title === (note.title || "") &&
-    draft.content === note.content
+    draft.content === note.content &&
+    tagsEqual(draft.tags || [], note.tags || [])
   ) {
     removeAutosaveDraft(key);
     hideAutosaveRecovery();
@@ -556,6 +569,8 @@ function restoreAutosaveDraft() {
 
   $("#noteTitle").value = draft.title;
   $("#noteContent").value = draft.content;
+  $("#noteTags").value = formatTagsForInput(draft.tags);
+  updateTagPreview();
   updateCharCount();
   recoveryAcknowledgedKey = key;
   hideAutosaveRecovery();
@@ -698,11 +713,54 @@ function preview(text) {
   return text.replace(/\s+/g, " ").trim().slice(0, 100);
 }
 
+function compactText(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
 function normalizeTitle(value) {
   if (typeof value !== "string") return null;
 
   const title = value.trim();
   return title || null;
+}
+
+function normalizeTag(value) {
+  if (typeof value !== "string") return null;
+
+  const tag = value.trim().replace(/^#+/, "").toLowerCase();
+  return TAG_PATTERN.test(tag) ? tag : null;
+}
+
+function normalizeTags(value) {
+  const rawTags = Array.isArray(value)
+    ? value
+    : String(value || "").split(/[\s,]+/);
+  const tags = [];
+  const seen = new Set();
+
+  rawTags.forEach(rawTag => {
+    const tag = normalizeTag(rawTag);
+    if (!tag || seen.has(tag)) return;
+
+    seen.add(tag);
+    tags.push(tag);
+  });
+
+  return tags;
+}
+
+function readEditorTags() {
+  return normalizeTags($("#noteTags")?.value || "");
+}
+
+function formatTagsForInput(tags) {
+  return normalizeTags(tags).map(tag => `#${tag}`).join(" ");
+}
+
+function tagsEqual(left, right) {
+  const leftTags = normalizeTags(left);
+  const rightTags = normalizeTags(right);
+  return leftTags.length === rightTags.length && leftTags.every((tag, index) => tag === rightTags[index]);
 }
 
 function normalizeNoteCode(value) {
@@ -726,11 +784,150 @@ function extractNoteReferences(content) {
 }
 
 function noteLabel(note) {
-  return normalizeTitle(note.title) || note.code;
+  return normalizeTitle(note.title) || preview(note.content) || note.code;
 }
 
 function noteCardDisplayText(note) {
   return preview(normalizeTitle(note.title) || note.content);
+}
+
+function normalizeNote(note) {
+  return {
+    ...note,
+    title: normalizeTitle(note?.title),
+    tags: normalizeTags(note?.tags || [])
+  };
+}
+
+function noteMatchesTag(note, tag) {
+  return !tag || normalizeTags(note.tags).includes(tag);
+}
+
+function buildTagCounts(notes) {
+  const counts = new Map();
+
+  notes.forEach(note => {
+    normalizeTags(note.tags).forEach(tag => {
+      counts.set(tag, (counts.get(tag) || 0) + 1);
+    });
+  });
+
+  return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+}
+
+function parseSearchQuery(query) {
+  const tokens = [];
+  const pattern = /"([^"]+)"|(\S+)/g;
+  let match;
+
+  while ((match = pattern.exec(query.trim())) !== null) {
+    const value = compactText(match[1] || match[2]).toLowerCase();
+    if (!value) continue;
+    tokens.push({ value, phrase: Boolean(match[1]) || value.includes(" ") });
+  }
+
+  return tokens;
+}
+
+function findFirstMatchIndex(text, tokens) {
+  const lowerText = String(text || "").toLowerCase();
+  let firstIndex = -1;
+
+  tokens.forEach(token => {
+    const index = lowerText.indexOf(token.value);
+    if (index === -1) return;
+    if (firstIndex === -1 || index < firstIndex) firstIndex = index;
+  });
+
+  return firstIndex;
+}
+
+function noteSearchResult(note, query) {
+  const tokens = parseSearchQuery(query);
+  if (!tokens.length) return { note, score: 0, titleMatched: false, contentIndex: -1, tokens };
+
+  const title = note.title || "";
+  const content = note.content || "";
+  const searchText = `${title}\n${content}`.toLowerCase();
+  const matches = tokens.every(token => searchText.includes(token.value));
+
+  if (!matches) return null;
+
+  const titleMatched = tokens.some(token => title.toLowerCase().includes(token.value));
+  const contentIndex = findFirstMatchIndex(content, tokens);
+  const exactQuery = compactText(query.replace(/^"|"$/g, "")).toLowerCase();
+  const exactPhraseMatched = exactQuery && searchText.includes(exactQuery);
+  const phraseMatches = tokens.filter(token => token.phrase).length;
+  const score = (exactPhraseMatched ? 40 : 0) + (phraseMatches * 10) + (titleMatched ? 6 : 0);
+
+  return { note, score, titleMatched, contentIndex, tokens };
+}
+
+function getSearchResults(notes, query) {
+  const results = notes
+    .map(note => noteSearchResult(note, query))
+    .filter(Boolean);
+
+  return results.sort((a, b) => b.score - a.score || new Date(b.note.created_at) - new Date(a.note.created_at));
+}
+
+function highlightText(text, tokens) {
+  const source = String(text || "");
+  const values = [...new Set(tokens.map(token => token.value).filter(Boolean))]
+    .sort((a, b) => b.length - a.length);
+
+  if (!values.length) return escapeHtml(source);
+
+  const lowerSource = source.toLowerCase();
+  const ranges = [];
+
+  values.forEach(value => {
+    let start = 0;
+    while (start < lowerSource.length) {
+      const index = lowerSource.indexOf(value, start);
+      if (index === -1) break;
+      ranges.push([index, index + value.length]);
+      start = index + Math.max(value.length, 1);
+    }
+  });
+
+  const merged = ranges
+    .sort((a, b) => a[0] - b[0] || b[1] - a[1])
+    .reduce((items, range) => {
+      const last = items[items.length - 1];
+      if (!last || range[0] > last[1]) {
+        items.push(range);
+      } else {
+        last[1] = Math.max(last[1], range[1]);
+      }
+      return items;
+    }, []);
+
+  let html = "";
+  let cursor = 0;
+
+  merged.forEach(([start, end]) => {
+    html += escapeHtml(source.slice(cursor, start));
+    html += `<mark>${escapeHtml(source.slice(start, end))}</mark>`;
+    cursor = end;
+  });
+
+  return html + escapeHtml(source.slice(cursor));
+}
+
+function searchSnippet(note, result) {
+  const content = compactText(note.content);
+  if (!content) return "";
+
+  const index = result?.contentIndex ?? -1;
+  if (index === -1) return preview(content);
+
+  const start = Math.max(0, index - 48);
+  const end = Math.min(content.length, index + 112);
+  const prefix = start > 0 ? "... " : "";
+  const suffix = end < content.length ? " ..." : "";
+
+  return `${prefix}${content.slice(start, end)}${suffix}`;
 }
 
 function sortNotes(notes, sort) {
@@ -761,32 +958,39 @@ function findNoteInState(code) {
 }
 
 function setNotes(notes) {
-  state.notes = Array.isArray(notes) ? notes.filter(noteHasCompleteData) : [];
+  state.notes = Array.isArray(notes) ? notes.filter(noteHasCompleteData).map(normalizeNote) : [];
   state.notesLoaded = true;
+  renderTagFilters();
 }
 
 function upsertNoteInState(note) {
   if (!noteHasCompleteData(note)) return false;
 
-  const normalizedCode = normalizeNoteCode(note.code);
+  const normalizedNote = normalizeNote(note);
+  const normalizedCode = normalizeNoteCode(normalizedNote.code);
   const index = state.notes.findIndex(existing => normalizeNoteCode(existing.code) === normalizedCode);
 
   if (index === -1) {
-    state.notes = [note, ...state.notes];
+    state.notes = [normalizedNote, ...state.notes];
   } else {
     state.notes = [
       ...state.notes.slice(0, index),
-      note,
+      normalizedNote,
       ...state.notes.slice(index + 1)
     ];
   }
 
+  renderTagFilters();
   return true;
 }
 
 function removeNoteFromState(code) {
   const normalizedCode = normalizeNoteCode(code);
   state.notes = state.notes.filter(note => normalizeNoteCode(note.code) !== normalizedCode);
+  if (state.selectedTag && !buildTagCounts(state.notes).some(([tag]) => tag === state.selectedTag)) {
+    state.selectedTag = null;
+  }
+  renderTagFilters();
 }
 
 function getNotesForSort(sort) {
@@ -795,16 +999,18 @@ function getNotesForSort(sort) {
 
 function renderCurrentNote(note) {
   const referenceIndex = buildNoteIndex(state.notes);
+  const normalizedNote = normalizeNote(note);
 
-  state.currentNote = note;
+  state.currentNote = normalizedNote;
 
-  $("#noteCode").textContent = note.code;
-  $("#noteTitleView").textContent = note.title || "";
-  $("#noteTitleView").hidden = !note.title;
-  $("#noteDate").innerHTML = renderNoteTimestamps(note);
+  $("#noteCode").textContent = normalizedNote.code;
+  $("#noteTitleView").textContent = normalizedNote.title || "";
+  $("#noteTitleView").hidden = !normalizedNote.title;
+  $("#noteDate").innerHTML = renderNoteTimestamps(normalizedNote);
+  renderNoteTags(normalizedNote.tags, $("#noteTagsView"), { clickable: true });
 
-  $("#noteContentView").innerHTML = renderMarkdown(note.content, referenceIndex);
-  renderBacklinks(note, state.notes);
+  $("#noteContentView").innerHTML = renderMarkdown(normalizedNote.content, referenceIndex);
+  renderBacklinks(normalizedNote, state.notes);
 }
 
 async function loadNoteList(sort = "newest", options = {}) {
@@ -830,19 +1036,75 @@ async function loadNoteList(sort = "newest", options = {}) {
   return noteListRequest;
 }
 
-function renderNoteRows(notes, container) {
+function renderTagChips(tags, options = {}) {
+  const className = options.active ? "tag-chip active" : "tag-chip";
+  return normalizeTags(tags)
+    .map(tag => `<span class="${className}" data-tag="${escapeAttribute(tag)}">#${escapeHtml(tag)}</span>`)
+    .join("");
+}
+
+function renderNoteTags(tags, container, options = {}) {
+  const normalizedTags = normalizeTags(tags);
+  if (!container) return;
+
+  container.hidden = normalizedTags.length === 0;
+  container.innerHTML = normalizedTags
+    .map(tag => {
+      const attrs = options.clickable ? ` role="button" tabindex="0" data-tag="${escapeAttribute(tag)}"` : "";
+      return `<span class="tag-chip"${attrs}>#${escapeHtml(tag)}</span>`;
+    })
+    .join("");
+}
+
+function renderTagFilters() {
+  const container = $("#tagFilters");
+  if (!container) return;
+
+  const tags = buildTagCounts(state.notes);
+  container.hidden = tags.length === 0;
+  container.innerHTML = tags.map(([tag, count]) => `
+    <button class="tag-filter${state.selectedTag === tag ? " active" : ""}" data-tag="${escapeAttribute(tag)}">
+      #${escapeHtml(tag)} <span>${count}</span>
+    </button>
+  `).join("");
+
+  container.querySelectorAll(".tag-filter").forEach(button => {
+    button.addEventListener("click", () => {
+      state.selectedTag = state.selectedTag === button.dataset.tag ? null : button.dataset.tag;
+      renderFilteredNotes();
+      renderTagFilters();
+    });
+  });
+}
+
+function renderNoteRows(notes, container, options = {}) {
   if (!notes.length) {
-    container.innerHTML = `<div class="empty-state">No notes yet.</div>`;
+    container.innerHTML = `<div class="empty-state">${escapeHtml(options.emptyMessage || "No notes yet.")}</div>`;
     return;
   }
 
-  container.innerHTML = notes.map(note => `
-    <button class="note-row" data-code="${escapeHtml(note.code)}">
+  container.innerHTML = notes.map(item => {
+    const note = item.note || item;
+    const result = item.note ? item : null;
+    const label = noteLabel(note);
+    const snippet = result ? searchSnippet(note, result) : noteCardDisplayText(note);
+    const tokens = result?.tokens || [];
+    const titleHtml = result ? highlightText(label, tokens) : escapeHtml(label);
+    const snippetHtml = result ? highlightText(snippet, tokens) : escapeHtml(snippet);
+    const tagsHtml = renderTagChips(note.tags);
+
+    return `
+    <button class="note-row${result ? " search-result" : ""}" data-code="${escapeHtml(note.code)}">
       <span class="row-code">${escapeHtml(note.code)}</span>
-      <span class="row-preview">${escapeHtml(noteCardDisplayText(note))}</span>
+      <span class="row-main">
+        <span class="row-title">${titleHtml}</span>
+        <span class="row-preview">${snippetHtml}</span>
+        ${tagsHtml ? `<span class="row-tags">${tagsHtml}</span>` : ""}
+      </span>
       <span class="row-date">${formatDate(note.created_at)}</span>
     </button>
-  `).join("");
+  `;
+  }).join("");
 
   container.querySelectorAll(".note-row").forEach(row => {
     row.addEventListener("click", () => openNote(row.dataset.code));
@@ -1320,15 +1582,23 @@ async function loadAllNotes(options = {}) {
 }
 
 function renderFilteredNotes() {
-  const query = $("#listSearch").value.trim().toLowerCase();
-  const notes = getNotesForSort($("#sortSelect").value);
+  const query = $("#listSearch").value.trim();
+  const notes = getNotesForSort($("#sortSelect").value)
+    .filter(note => noteMatchesTag(note, state.selectedTag));
 
-  const filtered = notes.filter(note =>
-    note.code.includes(query) ||
-    note.content.toLowerCase().includes(query)
-  );
+  if (!query) {
+    renderNoteRows(notes, $("#allNotesList"), {
+      emptyMessage: state.selectedTag ? `No notes tagged #${state.selectedTag}.` : "No notes yet."
+    });
+    return;
+  }
 
-  renderNoteRows(filtered, $("#allNotesList"));
+  const results = getSearchResults(notes, query);
+  renderNoteRows(results, $("#allNotesList"), {
+    emptyMessage: state.selectedTag
+      ? `No matches in #${state.selectedTag}.`
+      : "No matching notes."
+  });
 }
 
 async function openNote(code, options = {}) {
@@ -1370,11 +1640,14 @@ function openNewNote() {
   $("#editorMode").textContent = "NEW NOTE";
   $("#codePreview").textContent = "?".repeat(NOTE_CODE_LENGTH);
   $("#noteTitle").value = "";
+  $("#noteTags").value = "";
   $("#noteContent").value = "";
   $("#noteTitle").readOnly = false;
+  $("#noteTags").readOnly = false;
   $("#noteContent").readOnly = false;
   $("#saveBtn").style.display = "";
   $("#cancelBtn").textContent = "Cancel";
+  updateTagPreview();
   updateCharCount();
   $("#saveBtn").textContent = "Save & get code";
 
@@ -1395,11 +1668,14 @@ function openEditorForNote(note) {
   $("#editorMode").textContent = "EDIT NOTE";
   $("#codePreview").textContent = note.code;
   $("#noteTitle").value = note.title || "";
+  $("#noteTags").value = formatTagsForInput(note.tags);
   $("#noteContent").value = note.content;
   $("#noteTitle").readOnly = false;
+  $("#noteTags").readOnly = false;
   $("#noteContent").readOnly = false;
   $("#saveBtn").style.display = "";
   $("#cancelBtn").textContent = "Back";
+  updateTagPreview();
   updateCharCount();
   $("#saveBtn").textContent = "Save changes";
 
@@ -1416,6 +1692,7 @@ async function saveNote() {
 
   const title = normalizeTitle($("#noteTitle").value);
   const content = $("#noteContent").value.trim();
+  const tags = readEditorTags();
 
   if (!content) {
     showToast("Write something first.");
@@ -1433,7 +1710,7 @@ async function saveNote() {
         `/api/notes/${encodeURIComponent(state.editingCode)}`,
         {
           method: "PUT",
-          body: JSON.stringify({ title, content })
+          body: JSON.stringify({ title, content, tags })
         }
       );
 
@@ -1460,7 +1737,7 @@ async function saveNote() {
       const autosaveKey = AUTOSAVE_NEW_NOTE_KEY;
       const note = await api("/api/notes", {
         method: "POST",
-        body: JSON.stringify({ title, content })
+        body: JSON.stringify({ title, content, tags })
       });
 
       clearTimeout(autosaveTimer);
@@ -1492,6 +1769,7 @@ function showCodeSaved(code) {
   $("#editorMode").textContent = "SAVED";
   $("#codePreview").textContent = code;
   $("#noteTitle").readOnly = true;
+  $("#noteTags").readOnly = true;
   $("#noteContent").readOnly = true;
   $("#saveBtn").style.display = "none";
   $("#cancelBtn").textContent = "Done";
@@ -1567,12 +1845,42 @@ function updateCharCount() {
     `${$("#noteContent").value.length.toLocaleString()} characters`;
 }
 
+function updateTagPreview() {
+  const preview = $("#tagPreview");
+  if (!preview) return;
+
+  const tags = readEditorTags();
+  preview.hidden = tags.length === 0;
+  preview.innerHTML = renderTagChips(tags);
+}
+
+function selectTagFilter(tag) {
+  state.selectedTag = normalizeTag(tag);
+  showView("notes");
+  renderTagFilters();
+  renderFilteredNotes();
+  $("#listSearch")?.focus();
+}
+
+function clearArchiveFilters() {
+  const search = $("#listSearch");
+  const hadFilters = Boolean(search?.value || state.selectedTag);
+
+  if (search) search.value = "";
+  state.selectedTag = null;
+  renderTagFilters();
+  renderFilteredNotes();
+
+  return hadFilters;
+}
+
 function cancelEditor() {
   const wasEditorDoneMode = state.editorDoneMode;
 
   if (wasEditorDoneMode) {
     state.editorDoneMode = false;
     $("#noteTitle").readOnly = false;
+    $("#noteTags").readOnly = false;
     $("#noteContent").readOnly = false;
     $("#saveBtn").style.display = "";
     $("#cancelBtn").textContent = "Cancel";
@@ -1687,6 +1995,12 @@ function handleKeyboardShortcuts(event) {
   }
 
   if (event.key === "Escape" && isPlainKeyEvent(event) && canUseAppShortcuts(event)) {
+    if (state.currentView === "notes" && ($("#listSearch").value || state.selectedTag)) {
+      event.preventDefault();
+      clearArchiveFilters();
+      return;
+    }
+
     if (state.currentView === "editor") {
       event.preventDefault();
       cancelEditor();
@@ -1794,6 +2108,23 @@ $("#noteContentView").addEventListener("click", event => {
   openNote(reference.dataset.noteCode);
 });
 
+$("#noteTagsView")?.addEventListener("click", event => {
+  const tag = event.target.closest("[data-tag]");
+  if (!tag) return;
+
+  selectTagFilter(tag.dataset.tag);
+});
+
+$("#noteTagsView")?.addEventListener("keydown", event => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+
+  const tag = event.target.closest("[data-tag]");
+  if (!tag) return;
+
+  event.preventDefault();
+  selectTagFilter(tag.dataset.tag);
+});
+
 $("#searchForm").addEventListener("submit", event => {
   event.preventDefault();
 
@@ -1810,6 +2141,10 @@ $("#searchForm").addEventListener("submit", event => {
 $("#sortSelect").addEventListener("change", loadAllNotes);
 $("#listSearch").addEventListener("input", renderFilteredNotes);
 $("#noteTitle").addEventListener("input", scheduleAutosave);
+$("#noteTags").addEventListener("input", () => {
+  updateTagPreview();
+  scheduleAutosave();
+});
 $("#noteContent").addEventListener("input", () => {
   updateCharCount();
   scheduleAutosave();

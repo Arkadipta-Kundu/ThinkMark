@@ -160,13 +160,14 @@
       </div>
 
       <div class="toolbar">
-        <input id="listSearch" class="list-search" placeholder="Filter notes by code or content...">
+        <input id="listSearch" class="list-search" placeholder="Search titles and notes...">
         <select id="sortSelect">
           <option value="newest">Newest first</option>
           <option value="oldest">Oldest first</option>
           <option value="updated">Recently updated</option>
         </select>
       </div>
+      <div id="tagFilters" class="tag-filters" hidden></div>
 
       <div id="allNotesList" class="note-list">
         <div class="empty-state">Loading...</div>
@@ -208,6 +209,18 @@
             >
           </label>
 
+          <label class="editor-field" for="noteTags">
+            <span class="editor-label">Tags</span>
+            <input
+              id="noteTags"
+              class="editor-tags-input"
+              maxlength="500"
+              placeholder="#java #spring"
+              autocomplete="off"
+            >
+            <div id="tagPreview" class="tag-preview" hidden></div>
+          </label>
+
           <label class="editor-field" for="noteContent">
             <span class="editor-label">Note</span>
             <textarea
@@ -247,6 +260,7 @@
           <button id="noteCode" class="large-code" title="Copy code">a3b6</button>
           <h1 id="noteTitleView" class="note-title" hidden></h1>
           <div id="noteDate" class="note-date"></div>
+          <div id="noteTagsView" class="note-tags" hidden></div>
         </div>
 
         <article id="noteContentView" class="note-content"></article>
